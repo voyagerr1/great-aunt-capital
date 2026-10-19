@@ -1,0 +1,21 @@
+{
+  "name": "great-aunt-capital",
+  "private": true,
+  "version": "0.4.0",
+  "type": "module",
+  "description": "Pixel roguelite: turn Great Aunt Mildred's $100,000 into a town-owning empire.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "build:single": "vite build --mode single",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "sim": "node scripts/sim.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "vite": "^6.3.5",
+    "vite-plugin-singlefile": "^2.2.0",
+    "vitest": "^3.2.4"
+  }
+}
