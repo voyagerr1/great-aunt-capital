@@ -10,6 +10,7 @@ export function playRun(api, { strategy = 'balanced', size = 0.25, maxDays = 120
     else if (run.pitch) api.decidePitch(false);
     run.hand.forEach(c => api.choose(c.hint === 'bull'));
     if (run.dead) break;
+    run.ventures.forEach(v => { if (v.follow) api.followOn(v.name, run.cash > v.follow * 3); });
     run.holdings.forEach(h => { if (h.value > h.basis * 2.5 || h.age > 3) { run.cash += h.value; h.sold = true; } });
     run.holdings = run.holdings.filter(h => !h.sold);
     if (strategy !== 'stocks') {

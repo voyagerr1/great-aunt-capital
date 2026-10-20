@@ -149,3 +149,7 @@ button.ghost{background:var(--cream)} button.red{background:var(--red);color:var
 @keyframes pop{from{transform:scale(.9);opacity:0}}
 @media (prefers-reduced-motion:reduce){.pop,.hl,.bug::before{animation:none}.crawl span{animation:none;padding-left:6px}}
 @media (max-height:680px){.spark{height:42px}.tick{font-size:28px}.hud .val{font-size:24px}.screen{height:128px}.host{width:72px;height:72px}}
+.ed-blue{background:linear-gradient(#e4ecfa,#f4efe1 40%)}
+.ed-penny{background:repeating-linear-gradient(90deg,#f4efe1 0 10px,#efe3c8 10px 20px)}
+.ed-dividend{background:radial-gradient(circle at 85% 85%,#d6f0dc,#f4efe1 60%)}
+.edtxt{font-size:17px;opacity:.75}

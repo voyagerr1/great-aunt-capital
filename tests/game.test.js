@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { LOTS, PERKS, EVENTS } from '../src/data/content.js';
+import { LOTS, PERKS, EVENTS, EDITIONS, SECTORS, DISTRICTS } from '../src/data/content.js';
 import { playRun, setLots, quantile } from '../scripts/strategies.js';
 
 let api;
@@ -16,7 +16,55 @@ describe('content', () => {
   });
   it('has unique perk and event ids', () => {
     expect(new Set(PERKS.map(p => p.id)).size).toBe(PERKS.length);
+    expect(new Set(PERKS.map(p => p.code)).size).toBe(PERKS.length);
     expect(new Set(EVENTS.map(e => e.id)).size).toBe(EVENTS.length);
+  });
+  it('event effects point at real sectors and districts', () => {
+    const secs = SECTORS.map(s => s.id), dists = DISTRICTS.map(d => d.id);
+    for (const e of EVENTS) {
+      const fx = e.fx || {};
+      Object.keys(fx.trend || {}).concat(Object.keys(fx.sec || {})).forEach(k => expect(secs).toContain(k));
+      Object.keys(fx.dist || {}).forEach(k => expect(dists).toContain(k));
+    }
+  });
+  it('edition chances leave room for plain certificates', () => {
+    const w = Object.values(EDITIONS).reduce((s, e) => s + e.w, 0);
+    expect(w).toBeLessThan(0.6);
+  });
+});
+
+describe('systems', () => {
+  it('every event can play out a full day', () => {
+    api.setHeadless(true);
+    for (const ev of EVENTS) {
+      api.resetMeta(); api.newRun(); api.run.day = 5; api.run.cash = 5e5;
+      api.run.props.stand = { lvl: 1, dmg: 1 };
+      api.run.holdings.push({ name: 'Testly', basis: 1e4, value: 2e4, age: 3, last: 0, drift: 0 });
+      api.run.event = ev;
+      api.run.hand.forEach(() => api.choose(true));
+      expect(Number.isFinite(api.run.cash)).toBe(true);
+    }
+    api.setHeadless(false);
+  });
+  it('follow-on rounds keep or dilute your stake', () => {
+    api.setHeadless(true);
+    api.resetMeta(); api.newRun(); api.run.cash = 1e6;
+    const mk = name => { api.run.ventures.push({ name, idea: 'x', ask: 1e4, paid: 1e4, eq: 20, st: { team: 3, product: 3, market: 3, hype: 3 }, m: 2, round: 1, since: 0, follow: 5000 }); };
+    mk('Paid'); mk('Passed');
+    api.followOn('Paid', true); api.followOn('Passed', false);
+    const [a, b] = api.run.ventures;
+    expect(a.ask * a.m).toBe(25000); expect(a.eq).toBe(20); expect(a.follow).toBe(null);
+    expect(b.ask * b.m).toBe(15000); expect(b.eq).toBe(15);
+    api.setHeadless(false);
+  });
+  it('big orders cut gains', () => {
+    api.setHeadless(true);
+    api.resetMeta(); api.newRun();
+    const c = api.run.hand[0]; c.up = true; c.fraud = false; c.ed = null; c.vol = 3; c.price = 1;
+    api.run.cash = 5e6; api.run.dayStart = 5e6; api.run.size = 1;
+    api.choose(true); api.run.hand.slice(1).forEach(() => api.choose(false));
+    expect(c.slip).toBeGreaterThan(0.5);
+    api.setHeadless(false);
   });
 });
 

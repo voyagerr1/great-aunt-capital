@@ -52,12 +52,8 @@ tests/                vitest + jsdom
 - If you change the shape of `run`, bump `run.v`.
 
 ## Backlog (suggested next tasks)
-1. **Balance:** 50% and Max sizing snowball too easily (bot reaches Tycoon 13–18% of runs).
-   Ideas: a margin-call event, a cap on position size per stock, or rent that scales with net worth.
-2. **Startup follow-on rounds:** a startup asks for more money at a quarterly report; investing
-   keeps your ownership, passing dilutes it.
-3. **Tap a headline** to jump to the matching stock or property.
-4. **Sound:** small chiptune blips for buy/pass/closing bell (start audio from a user tap).
-5. **Split `game.js`:** move each scene's render function into `src/ui/scenes/*.js`.
-6. **Save mid-run** to localStorage so closing the browser doesn't end a run.
-7. **PWA:** manifest + icon so it can be added to a phone home screen.
+1. **Tap a headline** to jump to the matching stock or property.
+2. **Sound:** small chiptune blips for buy/pass/closing bell (start audio from a user tap).
+3. **Split `game.js`:** move each scene's render function into `src/ui/scenes/*.js`.
+4. **Save mid-run** to localStorage so closing the browser doesn't end a run.
+5. **PWA:** manifest + icon so it can be added to a phone home screen.
