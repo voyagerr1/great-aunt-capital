@@ -23,29 +23,8 @@ export const NEWS={
   BEES:{up:['Bees vote to work weekends','Honey declared legal tender in two towns','Queen bee signs record deal','Bee union wins dental plan, morale soars','Flowers report a great year'],down:['Bees on strike, demand bigger flowers','Honey shortage blamed on a bear','Hive caught cooking the books','Wasps launch hostile takeover','Bee CEO stung by scandal']},
 };
 export const FLUFF=['Local man finds $5 in old coat. Markets unmoved.','Weather: cloudy with a chance of quarterly reports.','Great Aunt Mildred spotted at bingo. Sources say she won.','Anchor Chip Bullock reveals his hair is his own.','Study finds 9 out of 10 dentists own boats.','Traffic report: one goose, very confident, on Route 9.','Mildred asks viewers to stop calling about her casserole.','Rex Shouter fined for shouting in a library.','Weatherman predicts weather. More at eleven.','Town council votes to rename Tuesday.'];
-export const IDEA_X=['Uber','Tinder','Netflix','Airbnb','Spotify','LinkedIn','Peloton','DoorDash','Zillow','Duolingo','Fitbit','Yelp'];
-export const IDEA_Y=['dogs','ghosts','grandmas','left socks','pigeons','lawn gnomes','bad haircuts','soup','haunted houses','your ex','raccoons','retired wizards','sourdough starters','toddlers','lost keys','garden snails'];
-export const SU_A=['Snugl','Gnom','Soup','Ghost','Paws','Sock','Vib','Snack','Hoot','Blip','Gobl','Wigl','Crumb','Zoop','Flump','Nugg'];
-export const SU_B=['ly','ify','r','hub','.io','AI','zy','o'];
-export const FOUNDERS=['Brayden','Skylar','Chad','Priya','Dev','Juniper','Tad','Moxie','Lars','Bex','Ozzie','Wren','Gunnar','Tamsin','Rocco','Fern','Dmitri','Kiki'];
-export const PITCH_LINES=['We are basically printing money. Literally, we bought a printer.','This is a billion-dollar idea. I have checked twice.','My mom says this is the best idea she has ever heard.','We have zero competitors because nobody else thought of it.','I quit my job for this. Well, I was fired, but same energy.','We grew 400% last month. From one user to five.','Investors are lining up. That line is my family.','I can\'t tell you how it works. That is how good it is.','Think of it as a rocket ship. A small one. On a budget.'];
-/* Traits nudge the four visible stats. team/product/market drive survival, hype drives IPO pop. */
-export const TRAITS=[
-  {t:'Has a working demo',fx:{product:2}},{t:'Already profitable',fx:{market:1},profit:true},{t:'Ex-astronaut',fx:{team:1,hype:1}},{t:'Grandma approved',fx:{hype:1}},
-  {t:'Pitch deck is one slide',fx:{product:-2}},{t:'Says "disrupt" every sentence',fx:{hype:2,team:-1}},{t:'Is "between visions"',fx:{team:-2}},{t:'Arrived on a Segway',fx:{hype:1,market:-1}},
-  {t:'Founder is a very good dog',fx:'wild'},{t:'Brought snacks',fx:{team:1}},{t:'Has 2 million followers',fx:{hype:2}},{t:'Patent pending (on a spoon)',fx:{product:1,market:-1}},
-  {t:'Two Nobel winners on staff',fx:{team:2,hype:-1}},{t:'Huge waitlist',fx:{market:2}},{t:'Office is a van',fx:{team:-1,hype:1}},{t:'Ex-Big Tech VP',fx:{team:1,product:1}},
-  {t:'Burned through 3 CFOs',fx:{team:-2,hype:1}},{t:'Viral video',fx:{hype:2,product:-1}},{t:'Government contract',fx:{market:2,hype:-1}},{t:'Ships every Friday',fx:{product:1}}];
-export const STATS=['team','product','market','hype'];
-export const ACQUIRERS=['a soup conglomerate','a confused billionaire','a much bigger app','a mattress company','a mysterious Swiss firm','a bank that used to be a gym','its biggest competitor','a minor royal family','a cereal mascot'];
-export const BUSTS=['spent it all on beanbags','pivoted to selling pivots','founder found himself in Bali','got sued by a dog','ran out of runway and snacks','spent it all on a Super Bowl ad','lost the servers in a divorce','was a pyramid scheme, technically a triangle','forgot to charge customers'];
-export const HOLD_UP=['{N} rumored acquisition target','{N} signs deal with a theme park','Celebrity spotted using {N}','{N} beats earnings, throws pizza party','{N} added to a famous index','{N} CEO named Person of the Week'];
-export const HOLD_DOWN=['{N} CEO subpoenaed over "the incident"','{N} app deleted by millions','{N} co-founders feuding on social media','{N} servers powered by one hamster, report says','{N} misses earnings by a lot','{N} customers asking for refunds, loudly'];
-export const HAIRS=['#2b1d12','#d9a441','#a8432f','#1a1a1a','#7a5bd6','#3fbf7f'];
 export const REX_BUY=['BUY BUY BUY {T}!','{T} TO THE MOON!','MORTGAGE THE CAT. BUY {T}!','{T} IS A ROCKET SHIP!','BACK UP THE TRUCK FOR {T}!'];
 export const REX_SELL=['{T}? DUMP IT!','{T} IS A DUMPSTER FIRE!','SELL {T} YESTERDAY!','RUN FROM {T}! RUN!','{T}? NOT WITH YOUR MONEY!'];
-export const PIVOT_TO=['crypto','AI','a podcast','frozen yogurt','a zoo','pet insurance','a dating app for chefs','luxury socks'];
-export const HOODIES=['#3a3a3a','#e8433a','#2b6cb0','#6b8e23','#c76fa8'];
 
 export const REX_REACT={
   great:['UNBELIEVABLE! I TAUGHT YOU THAT!','THE MONEY PRINTER GOES BRRR!','SOMEBODY CALL MY MOTHER!','THAT IS A ROCKET SHIP, BABY!'],
@@ -63,7 +42,7 @@ export const PERKS=[
  {id:'diamond',code:'DH',r:'c',name:'Diamond Hands',desc:'Losses on your buys are capped at -50%.',cost:10,c:'#5fe0e8'},
  {id:'memelord',code:'ML',r:'u',name:'Meme Lord',desc:'+3 MULT for each MEME stock you buy.',cost:11,c:'#ff8fc7'},
  {id:'haven',code:'TH',r:'u',name:'Tax Haven',desc:'Rent costs 40% less.',cost:14,c:'#6fdc9c'},
- {id:'cat',code:'CC',r:'r',name:'Compound Cat',desc:'x0.2 more MULT every day you own it. Selling a share or a property resets it.',cost:15,c:'#ffd23f'},
+ {id:'cat',code:'CC',r:'r',name:'Compound Cat',desc:'x0.2 more MULT every day you own it. Selling a property resets it.',cost:15,c:'#ffd23f'},
  {id:'contra',code:'CN',r:'c',name:'Contrarian',desc:'+1 MULT for each stock you passed that fell.',cost:9,c:'#e8433a'},
  {id:'penny',code:'LP',r:'c',name:'Lucky Penny',desc:'Your first loss each day breaks even instead.',cost:10,c:'#d9a066'},
  {id:'larry',code:'LL',r:'u',name:'Leverage Larry',desc:'x1.5 MULT. Losses on your buys are 1.5x bigger too.',cost:12,c:'#c79bff'},
@@ -74,13 +53,9 @@ export const PERKS=[
  {id:'nephew',code:'AN',r:'u',name:"Anchor's Nephew",desc:'The news and Rex Shouter are both far more accurate.',cost:13,c:'#a3c4ff'},
  {id:'landlord',code:'SS',r:'u',name:'Slumlord Sal',desc:'Property income +40%.',cost:14,c:'#9be08a'},
  {id:'flipper',code:'HF',r:'c',name:'House Flipper',desc:'Sell property for 120% of its value instead of 95%.',cost:9,c:'#ffc46b'},
- {id:'angel',code:'AW',r:'c',name:'Angel Wings',desc:'Startups you back are much less likely to go bust.',cost:9,c:'#fff0a8'},
  {id:'daytrader',code:'DT',r:'u',name:'Day Trader',desc:'+1 stock certificate every day.',cost:12,c:'#ffd9a8'},
  {id:'hedge',code:'HG',r:'c',name:'Hedge Hog',desc:'Lose on 2 or more buys in a day: get 30% of those losses back.',cost:9,c:'#b8e0d2'},
- {id:'manager',code:'PM',r:'c',name:'Property Manager',desc:'Renovations cost 30% less. Termites stay away.',cost:9,c:'#c9a27a'},
- {id:'seed',code:'SF',r:'c',name:'Seed Fund',desc:'Founders pitch far more often, and ask for 20% less.',cost:9,c:'#ffef9e'},
  {id:'zoning',code:'ZB',r:'u',name:'Zoning Board',desc:'Owning a whole district pays 2x instead of 1.5x.',cost:12,c:'#8fd6a8'},
- {id:'whisper',code:'TW',r:'c',name:'Ticker Whisperer',desc:'Headlines about your listed shares are always true, and they rise more often.',cost:10,c:'#ffe066'},
  {id:'scalper',code:'SC',r:'c',name:'Scalper',desc:'Get 3% of every buy back as a broker rebate.',cost:8,c:'#e0b3ff'},
  {id:'rexfan',code:'RF',r:'c',name:"Rex's Biggest Fan",desc:"Buy Rex Shouter's hot pick: +4 MULT.",cost:8,c:'#ff9b8f'},
  {id:'umbrella',code:'UP',r:'u',name:'Umbrella Policy',desc:'No rent on Boss Landlord days.',cost:13,c:'#a8c8ff'},
@@ -89,7 +64,6 @@ export const PERKS=[
  {id:'echo',code:'EC',r:'r',name:'Echo Chamber',desc:'Retrigger your first stock once for each MEME stock you bought.',cost:16,c:'#f58cff'},
  {id:'mcat',code:'MC',r:'r',name:"Mildred's Cat",desc:'x3 MULT. Eats one of your consumables every morning.',cost:17,c:'#ffcf6e'},
  {id:'vertical',code:'VI',r:'u',name:'Vertical Integration',desc:"+1 MULT per lot you own in the district tied to each stock's sector.",cost:12,c:'#7fd1b9'},
- {id:'parachute',code:'GP',r:'u',name:'Golden Parachute',desc:'x0.5 more MULT each time a startup you back goes bust. Starts at x1.',cost:12,c:'#ffd700'},
  {id:'splitter',code:'ST',r:'c',name:'Stock Splitter',desc:'+1 MULT for each stock you buy under $10 a share.',cost:8,c:'#b4f0a0'},
  {id:'bag',code:'BH',r:'c',name:'Bagholder',desc:'+3 MULT if one of your buys fell.',cost:8,c:'#c2a383'},
  {id:'clock',code:'BC',r:'c',name:'Broken Clock',desc:'x2 MULT on even-numbered days.',cost:10,c:'#e6e6e6'},
@@ -181,20 +155,15 @@ export const SEALS={
 /* ===== Real estate =====
    Each run draws 4 districts from the pool. District slot 1-4 sets the price tier; lots inside rise in price.
    sec ties the district to a stock sector (Vertical Integration). gim = gimmick, read in propInc():
-   casino (pays 0-3x), price (x), ghost (chance a lot pays nothing), mono (monopoly x), noSell, inc (x),
-   trend (pays 2x / 0.5x with that sector's headline), steady (ignores the housing index), crowd (+x per lot owned), boss (x on boss days). */
+   casino (pays 0-3x), mono (monopoly x), noSell, inc (x), boss (x on boss days). */
 export const DISTRICT_POOL=[
  {id:'old',name:'Old Town',c:'#c9a27a',sec:'FOOD',lots:['Lemonade Stand','Corner Bodega','Laundromat','24-Hour Diner'],txt:'Plain and reliable.'},
  {id:'sub',name:'Suburbs',c:'#6fdc9c',sec:'PETS',lots:['Duplex','Cul-de-sac','Strip Mall','Waterpark'],txt:'Plain and reliable.'},
  {id:'harbor',name:'Harbor',c:'#5fe0e8',sec:'OIL',lots:['Bait & Tackle','Fish Market','Marina','Lighthouse Hotel'],txt:'Plain and reliable.'},
  {id:'sky',name:'Skyline',c:'#c79bff',sec:'TECH',lots:['Office Tower','Casino','Stadium','Mildred Tower'],txt:'Plain and reliable.'},
  {id:'strip',name:'Casino Strip',c:'#ff6b6b',sec:'MEME',gim:{casino:1},lots:['Slot Shack','Bingo Hall','Poker Palace','The Golden Goose'],txt:'Pays 0x to 3x each night. Who knows.'},
- {id:'hill',name:'Haunted Hill',c:'#9a8cff',sec:'CRYPTO',gim:{price:.5,ghost:.15},lots:['Creaky Shed','Spooky Cottage','Old Asylum',"Count's Castle"],txt:'Half price. Each lot has a 15% chance to pay nothing each night.'},
  {id:'moon',name:'Moon Base',c:'#a8f0ff',sec:'SPACE',gim:{mono:2.5},lots:['Crater Hut','Dome Home','Cheese Mine','Lunar Spa'],txt:'A monopoly here pays 2.5x.'},
  {id:'goose',name:'Goose Sanctuary',c:'#e8e2c8',sec:'PETS',gim:{noSell:1,inc:1.5},lots:['The Pond','Bread Stand','Goose Court','Goose Palace'],txt:'Pays 1.5x, but the geese will never let you sell.'},
- {id:'valley',name:'Crypto Valley',c:'#b48cff',sec:'CRYPTO',gim:{trend:'CRYPTO'},lots:['Mining Garage','Server Farm','Coin Bank','Blockchain Tower'],txt:'Pays 2x when CRYPTO is up in the news, 0.5x when it is down.'},
- {id:'farm',name:'Farmland',c:'#9be08a',sec:'FOOD',gim:{steady:1},lots:['Pumpkin Patch','Dairy Barn','Orchard','Mega Silo'],txt:'Housing swings never touch it.'},
- {id:'park',name:'Theme Park',c:'#ffb3a1',sec:'MEME',gim:{crowd:.04},lots:['Ticket Booth','Bumper Cars','Log Flume','Mega Coaster'],txt:'Each lot pays +4% for every lot you own in town.'},
  {id:'mall',name:'Mega Mall',c:'#ffd9a8',sec:'FOOD',gim:{boss:2.5},lots:['Food Court','Shoe Store','Arcade','Department Store'],txt:'Pays 2.5x on Boss Landlord days.'},
 ];
 // price and nightly yield by position in town (district slot x 4 + lot)
@@ -204,14 +173,12 @@ export const buildLots=dists=>LOT_TIERS.map(([price,yld],i)=>{const d=dists[Math
   return {id:d.id+(i%4),name:d.lots[i%4],dist:d.id,price,yld:yld*2,tier:i%4,di:Math.floor(i/4),c:d.c}});
 export const DISTRICTS=DISTRICT_POOL.slice(0,4);   // the classic town
 export const LOTS=buildLots(DISTRICTS);
-export const LVL_VAL=[1,1.35,1.75];  // property value by renovation level
-export const LVL_INC=[1,1.5,2.2];   // property income by renovation level
 
 /* Daily events. Effects live in fx so a new event needs no new logic:
    gain (x MULT), pUp (rise chance +/-), gift ($), flare (hints are coin flips), sec ({SECTOR: move x}),
    trend ({SECTOR: 1|-1}, forced and reported truthfully), move (all moves x), fraud (fake stocks),
-   rent (rent x), house (housing index +/-), termites (damage x), distRand (a random district's income x, named as {D}),
-   dividend (listed shares pay this share of value), cap (max buy as share of morning cash), tax (share of cash lost).
+   rent (rent x), distRand (a random district's income x, named as {D}),
+   cap (max buy as share of morning cash), tax (share of cash lost).
    Boss Landlords and story arcs use the same fx keys plus the ones listed above BOSSES and ARCS. */
 export const EVENTS=[
  {id:'quiet',w:5,name:'Quiet Day',txt:'Nothing unusual on the Street.'},
@@ -222,18 +189,14 @@ export const EVENTS=[
  {id:'meme',w:1,name:'Meme Season',txt:'MEME stocks move three times harder.',fx:{sec:{MEME:3}}},
  {id:'raid',w:1,name:'SEC Raid',txt:'One stock today is a total fraud.',fx:{fraud:1}},
  {id:'free',w:.8,name:'Landlord Vacation',txt:'No rent today.',fx:{rent:0}},
- {id:'boom',w:1,name:'Housing Boom',txt:'Property values jump 12% at close.',fx:{house:.12}},
- {id:'termites',w:.8,name:'Termites',txt:'Bugs are chewing on one of your buildings tonight.',fx:{termites:.8}},
  {id:'heat',w:.7,name:'Heat Wave',txt:'Everyone wants ice cream. FOOD stocks are running hot.',fx:{trend:{FOOD:1}}},
  {id:'winter',w:.7,name:'Crypto Winter',txt:'Coins are freezing over. CRYPTO is sliding.',fx:{trend:{CRYPTO:-1}}},
  {id:'launch',w:.7,name:'Launch Day',txt:'Big rocket on the pad. SPACE is climbing.',fx:{trend:{SPACE:1}}},
  {id:'recall',w:.6,name:'Kibble Recall',txt:'Bad batch of dog food. PETS are falling.',fx:{trend:{PETS:-1}}},
  {id:'crash',w:.7,name:'Flash Crash',txt:'The trading computers panicked. Every stock moves twice as hard.',fx:{move:2}},
- {id:'hike',w:.7,name:'Rate Hike',txt:'Mortgages got pricey. Property values drop 8% at close.',fx:{house:-.08}},
  {id:'tourist',w:.7,name:'Tourist Season',txt:'Tourists flood {D}. Its lots pay double tonight.',fx:{distRand:2}},
  {id:'party',w:.7,name:'Block Party',txt:'Bouncy castles all over {D}. It pays double tonight.',fx:{distRand:2}},
  {id:'blackout',w:.5,name:'Blackout',txt:'{D} lost power. Its lots pay nothing tonight.',fx:{distRand:0}},
- {id:'dividend',w:.7,name:'Dividend Day',txt:'Your listed shares pay 8% of their value in cash.',fx:{dividend:.08}},
  {id:'margin',w:.8,name:'Margin Call',txt:'Your broker is nervous. No single buy can use more than 25% of morning cash.',fx:{cap:.25}},
  {id:'reunion',w:.6,name:'Family Reunion',txt:'The cousins need a loan. They borrow 5% of your cash, forever.',fx:{tax:.05}},
  {id:'rentup',w:.6,name:'Rent Hike',txt:'Your landlord bought a boat. Rent is 50% higher tonight.',fx:{rent:1.5}},
@@ -293,7 +256,7 @@ export const ARCS=[
  {id:'pickle',name:'The Great Pickle Heist',steps:[
    {txt:'Every pickle in town has gone missing.'},
    {txt:'Detectives baffled. FOOD stocks swing wildly.',fx:{sec:{FOOD:2}}},
-   {txt:"Pickles found in the Mayor's pool. Housing jumps 8% in relief.",fx:{house:.08}}]},
+   {txt:"Pickles found in the Mayor's pool. FOOD stocks rally in relief.",fx:{trend:{FOOD:1}}}]},
  {id:'toaster',name:'The Toaster Uprising',steps:[
    {txt:'Smart toasters across town refuse to toast.'},
    {txt:'Toasters demand voting rights. TECH is sliding.',fx:{trend:{TECH:-1}}},
@@ -338,6 +301,5 @@ export const UPGRADES=[
  {id:'deed',name:'Old Family Deed',desc:'Start each run owning the cheapest lot in town.',max:1,cost:()=>8},
  {id:'starter',name:'Family Heirloom',desc:'Start each run with a random common perk.',max:1,cost:()=>6},
  {id:'rentctl',name:'Rent Control',desc:'Rent is 5% lower.',max:3,cost:l=>6*(l+1)},
- {id:'rolodex',name:'Rolodex',desc:'Founders pitch 15% more often.',max:2,cost:l=>4*(l+1)},
  {id:'pocket',name:'Bigger Pockets',desc:'Start each run with a random Almanac.',max:1,cost:()=>5},
 ];

@@ -6,8 +6,8 @@ Guidance for AI coding agents (Codex, Claude) working in this repo.
 A mobile-first pixel roguelite with a Balatro-style scoring engine. Great Aunt Mildred gives you
 $100,000. Each in-game day you watch a morning finance news show, swipe right/left on stocks from a
 persistent market deck, and at the Closing Bell your gains are multiplied by MULT built from your
-portfolio hand and perks (triggered left to right). Every quarter ends with a Boss Landlord. Back
-startups, buy a procedurally drawn town, use Memos/Almanacs/Envelopes, and pay rising rent. Go broke
+portfolio hand and perks (triggered left to right). Every quarter ends with a Boss Landlord. Buy a
+procedurally drawn town, use Memos/Almanacs/Envelopes, and pay rising rent. Go broke
 and you earn Pearls for permanent upgrades, new aunts and harder moods. Own all 16 lots to become a
 Tycoon, then keep going in endless mode.
 
@@ -48,14 +48,15 @@ tests/                vitest + jsdom
 - `render()` rebuilds `#app` from template strings for the current `scene`, then appends the perk/consumable
   sheet (`run.modal`) and starts the Closing Bell animation. Buttons use `data-act` attributes, handled by one
   delegated click listener in the Input section.
-- Day flow: `startDay()` → scene `news` → optional `pitch` → `play` (swipe cards) → `resolveDay()`
-  (`scoreMoves()` then `closingBell()`) → `resolve` → (`quarter` on boss days) → `shop` (Newsstand / Broker)
-  → next `startDay()`. `town` and `book` (the Ledger) open from most screens.
+- Day flow: `startDay()` → scene `news` → `play` (swipe cards) → `resolveDay()`
+  (`scoreMoves()` then `closingBell()`) → `resolve` → `shop` (Newsstand, or the Broker on boss days)
+  → next `startDay()`. `town` opens from most screens. Hands, boss, perk and item details are sheets (`run.modal.kind`).
 - `api` (bottom of game.js) exposes hooks for tests and the sim. `setHeadless(true)` skips rendering.
 - The RNG is seeded per run. Use `R()`/`pick`/`rr`/`shuffle` from util.js, never `Math.random`, in game logic.
 
 ## Conventions
 - Phone first: test layouts at ~380px wide. Max content width 460px. No horizontal scroll.
+- Keep it focused: every system should feed the swipe → Closing Bell loop. Prefer a sheet over a new screen.
 - Keep the look: navy studio, yellow chyrons, Silkscreen (display) + VT323 (body), cream stock
   certificates, hard pixel shadows, no rounded corners except seals. Colors come from CSS tokens.
 - Copy is short, plain and funny. Name things by what players recognize. No emoji in UI.

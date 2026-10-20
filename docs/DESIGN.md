@@ -1,10 +1,10 @@
 # Great Aunt Capital — Design Notes
 
-Version 0.6 ("the MULT update"). Numbers live in `src/data/content.js`, `src/engine/` and `src/game.js`; this doc explains them.
+Version 0.7 ("the focus update": startups cut, town simplified, clearer UI). Numbers live in `src/data/content.js`, `src/engine/` and `src/game.js`; this doc explains them.
 
 ## Pitch
 Great Aunt Mildred hands you $100,000. Read the morning news, swipe on stock certificates, stack MULT
-at the Closing Bell, survive the Boss Landlords, back weird startups and buy the town. Most runs end
+at the Closing Bell, survive the Boss Landlords and buy the town. Most runs end
 broke. A few break wide open, and those are the ones people remember.
 
 Look: a 1980s cable finance channel (GAC-TV). Navy studio, yellow chyrons, LIVE bug, ticker
@@ -22,14 +22,12 @@ crawl, pixel anchors. Stocks are engraved certificates.
   (as long as you make the same choices). The **Daily Market** uses `DAILY-YYYYMMDD`.
 
 ## The day loop
-1. **Morning news.** Portfolio report, two sector headlines (80% accurate), a headline about a listed share
-   you own (or fluff), a story-arc headline if one is running, Rex Shouter's hot pick (55%), the daily event.
-2. **Pitch (sometimes).** From day 2, 45% chance (80% Seed Fund, +15% per Rolodex level), at most 3 open startups.
-3. **Market.** 4 certificates (+1 per Longer Ticker Tape level, +1 Day Trader) dealt from **your market deck**.
+1. **Morning news.** "Today's tips" first: two sector headlines (80% accurate, the accuracy is shown), a story-arc
+   headline if one is running, Rex Shouter's hot pick (55%, shown), the daily event. Net worth from day 2. Fluff rides the crawl.
+2. **Market.** 4 certificates (+1 per Longer Ticker Tape level, +1 Day Trader) dealt from **your market deck**.
    Pick a position size and swipe. The play screen shows your hand so far and what this buy would make it.
-4. **Closing Bell.** The scoring tally (below). Then property income, rent, and on the last day of the
-   quarter: startup reports and the Boss bounty.
-5. **Newsstand** every day (3 consumables). On boss days it is **the Broker**: 3 perks + 2 consumables.
+3. **Closing Bell.** The scoring tally (below). Then property income, rent, and on boss days the bounty.
+4. **Newsstand** every day (3 consumables). On boss days it is **the Broker**: 3 perks + 2 consumables.
 
 ## The Closing Bell (scoring)
 ```
@@ -76,10 +74,9 @@ The best hand you qualify for (by current MULT) counts. Almanacs level a hand up
 - Each run starts with 20 companies spread across the 7 base sectors (Bernice: CRYPTO/MEME). Every morning a
   random handful is dealt. Companies keep their price, edition, stamp and seal; the certificate shows how often
   you have seen it and its last move (▲/▼).
-- **Charts.** Each company keeps its last 12 closes (`co.hist`), drawn as a sparkline on the certificate and in the
-  Ledger's Market tab (a watchlist sorted by movers or sector). Only dealt companies trade, so a newcomer arrives with
+- **Charts.** Each company keeps its last 12 closes (`co.hist`), drawn as a sparkline on the certificate. Only dealt companies trade, so a newcomer arrives with
   5 closes from before it joined your market, hashed from its serial (never `R()`, so charts don't change what a
-  seed deals). Charts show the past only. The news crawl lists the last close's movers. Listed shares (IPOs) chart too.
+  seed deals). Charts show the past only. The news crawl lists the last close's movers.
 - **Stamps** (`ENH`): Notarized (loses at most 10%), Haunted (copies the move of the certificate before it),
   Glass (×3 moves, 25% chance to shatter out of the market when bought), Hot Tip (+4 MULT when bought and up).
 - **Seals** (`SEALS`): Red (retrigger), Gold (buying pays half of tonight's rent), Blue (buying gives the
@@ -102,13 +99,13 @@ The best hand you qualify for (by current MULT) counts. Almanacs level a hand up
 Rarity weights in the Broker: Common 70, Uncommon 25, Rare 5. Legendary only from Brown Envelopes.
 Editions roll on 17% of offers (Embossed 10%, Holographic 5%, Counterfeit 2%) and cost 1.5x.
 Sell any perk for half its price; Ponzi Pete counts every sale. Hooks live in `src/engine/perks.js`.
-47 perks; see `PERKS` for the list. Scaling ones: Compound Cat (+x0.2 per day held, reset by selling a share or
-lot), Golden Parachute (+x0.5 per startup bust), Lawn Gnome (+2 per boss beaten), Swipe Right Sally (+0.25 per
+42 perks; see `PERKS` for the list. Scaling ones: Compound Cat (+x0.2 per day held, reset by selling a share or
+lot), Lawn Gnome (+2 per boss beaten), Swipe Right Sally (+0.25 per
 stock bought), Mildred Herself (x1 per 4 days).
 
 ## Boss Landlords
 - The last day of every quarter (day 4, 8, 12...). The boss is drawn at the start of the quarter and shown in
-  the bar under your perks. Boss rent is 1.5x on top of the boss's own effect.
+  the boss bar under your perks (tap it for details). Boss rent is 1.5x on top of the boss's own effect.
 - Bosses (`BOSSES`): The Goose, The Auditor, Mildred's Birthday, The Shortseller, Blackout Barry,
   Rex Shouter Himself, The Tax Man, The Hedge Fund Bro, The Margin Clerk, The Wall, The Fortune Teller, The Repo Man.
 - Final Bosses every 4th quarter (`FINALS`): Mildred's Accountant, The Family Lawyer, The Estranged Cousin, The Executor.
@@ -122,17 +119,13 @@ stock bought), Mildred Herself (x1 per 4 days).
   First Contact (adds ALIEN), The Bee Situation (adds BEES), Mildred's Cruise, The Great Pickle Heist,
   The Toaster Uprising.
 
-## Startups (quarterly)
-Unchanged from v0.5: stats 1–5, bust chance `0.38 − q·0.32`, exits, pivots, funding rounds, follow-ons, IPOs.
-Golden Parachute turns busts into MULT.
-
 ## Real estate (procedural town)
-- Each run draws 4 of 12 districts (`DISTRICT_POOL`). District slot sets the price tier ($15K to $20M, yields 16%
+- Each run draws 4 of 8 districts (`DISTRICT_POOL`). District slot sets the price tier ($15K to $20M, yields 16%
   down to 12% per night). Each district is tied to a stock sector (Vertical Integration: +1 MULT per lot).
-- Gimmicks: Casino Strip (0–3x nightly), Haunted Hill (half price, 15% chance a lot pays nothing),
-  Moon Base (monopoly 2.5x), Goose Sanctuary (1.5x, can't sell), Crypto Valley (2x / 0.5x with CRYPTO news),
-  Farmland (ignores housing index), Theme Park (+4% per lot owned), Mega Mall (2.5x on boss days).
-- Nightly income = price × yield × renovation × monopoly (1.5, 2 Zoning Board) × Slumlord Sal (1.4) × gimmick × events.
+- Gimmicks: Casino Strip (0–3x nightly), Moon Base (monopoly 2.5x), Goose Sanctuary (1.5x, can't sell),
+  Mega Mall (2.5x on boss days). The other four are plain.
+- Nightly income = price × yield × monopoly (1.5, 2 Zoning Board) × Slumlord Sal (1.4) × gimmick × events.
+  Lots are worth their price; sell for 95% (House Flipper 120%). v0.7 cut renovation, termites and the housing index.
 - Own all 16 lots: **Tycoon** (+25 pearls now, +10 at run end). Keep playing for **endless mode**.
 
 ## Rent
@@ -147,18 +140,26 @@ static and Mildred says one line. Infinity prints as `naneinf`.
 ## Meta progression (The Will)
 Pearls on death = (days − 1 + ⌊3·log2(peak / $100K)⌋ + bosses beaten + 10 if Tycoon) × (1 + 0.25 × mood).
 Upgrades: Bigger Allowance, Longer Ticker Tape, Premium Cable, Better Gossip, Broker Friend,
-Old Family Deed, Family Heirloom, Rent Control, Rolodex, Bigger Pockets (start with an Almanac).
+Old Family Deed, Family Heirloom, Rent Control, Bigger Pockets (start with an Almanac).
 Game over shows the seed, offers **Same seed**, and **Share certificate** (a PNG drawn on canvas; uses the
 share sheet on phones, downloads elsewhere).
+
+## Screens and help
+- **HUD** on every in-run screen: cash, day and tonight's rent; labeled Perk and Item slots (tap one for its sheet);
+  the boss bar (tap for the boss sheet) and a **Hands** button (every hand, its level and MULT; today's hand is marked).
+  The play screen's hand line opens the same sheet.
+- **First-run tips**: one dashed yellow line on the news, play, Closing Bell and shop screens, day 1 of a player's first run.
 
 ## Balance snapshot (`npm run sim`, 400 runs each, naive bots that buy perks and Almanacs blindly)
 | Strategy | Days p10/med/p90 | Peak NW p90 | Best MULT p90 | Tycoon |
 |---|---|---|---|---|
-| Stocks only, 25% | 6 / 8 / 24 | $2.0M | 15 | 0% |
-| Balanced, 25% | 8 / 10 / 15 | $236K | 7.5 | 3.0% |
-| Balanced, 50% | 8 / 11 / 18 | $588K | 9 | 5.8% |
-| Balanced, Max | 7 / 11 / 24 | $1.8M | 10 | 4.0% |
-| No shop, 25% | 8 / 10 / 14 | $192K | 5 | 0% |
+| Stocks only, 25% | 7 / 11 / 50 | $88.5M | 49.5 | 0% |
+| Balanced, 25% | 9 / 12 / 28 | $66.5M | 16 | 10.0% |
+| Balanced, 50% | 9 / 12 / 31 | $69.5M | 24 | 18.3% |
+| Balanced, Max | 8 / 12 / 33 | $68.8M | 22.9 | 14.0% |
+| No shop, 25% | 10 / 12 / 16 | $251K | 5 | 0% |
 
 Target: a typical run lasts 8–15 days. The tail should be fat: a run whose engine comes together should feel
 broken. The bots don't order perks, use Memos or build toward a hand, so a thinking player should beat them.
+v0.7 runs are longer and Tycoon is more common than in v0.6 (bots no longer lose cash on startups that bust, and
+lot prices no longer drift up with a housing index).

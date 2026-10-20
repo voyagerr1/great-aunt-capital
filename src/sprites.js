@@ -15,7 +15,7 @@ export const PAL={
 export const spriteCache={};
 export function sprite(kind,over){
   const key=kind+JSON.stringify(over||{}); if(spriteCache[key]) return spriteCache[key];
-  const pal=Object.assign({},PAL[kind==='founder'?'anchor':kind],over||{}), map=MAPS[kind==='founder'?'anchor':kind];
+  const pal=Object.assign({},PAL[kind],over||{}), map=MAPS[kind];
   const cv=document.createElement('canvas');cv.width=16;cv.height=16;const g=cv.getContext('2d');
   map.forEach((row,y)=>[...row].forEach((ch,x)=>{if(pal[ch]){g.fillStyle=pal[ch];g.fillRect(x,y,1,1)}}));
   return spriteCache[key]=cv.toDataURL();
