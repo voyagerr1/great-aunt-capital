@@ -724,7 +724,7 @@ function render(){
   const captions={title:'Welcome',setup:'New account',help:'Help contents',will:'The will',news:'Market Mail',play:'Market.exe',resolve:'Closing Bell.xls',shop:'Broker catalog',town:'Property Explorer',tycoon:'Account milestone',ascend:'Account milestone',over:'Account closed'};
   const caption=document.getElementById('window-caption'), status=document.getElementById('desktop-status');
   if(caption)caption.textContent=captions[scene]||'Personal finance';
-  if(status)status.textContent=run&&['news','play','resolve','shop','town'].includes(scene)?`Day ${run.day} · ${scene==='play'?`${run.hand.length-run.idx} orders remaining`:captions[scene]}`:'Ready. Your aunt believes in you. The SEC does not.';
+  if(status)status.textContent=run&&['news','play','resolve','shop','town'].includes(scene)?`Day ${run.day} · ${scene==='play'?`${run.hand.length-run.idx} orders remaining`:captions[scene]}`:'Ready.';
   if(run&&run.modal&&['news','play','resolve','shop','town'].includes(scene)) app.insertAdjacentHTML('beforeend',modalHTML());
   if(pendingStart)app.insertAdjacentHTML('beforeend',sheet('<div class="n d">Replace your saved run?</div><div>Your current day and investments will be replaced. Pearls and permanent upgrades stay.</div><button class="red" data-act="replacestart">Replace saved run</button><button data-act="closemodal">Keep saved run</button>',false));
   if(scene==='resolve'&&!run.result.shown) animateTally();
@@ -739,9 +739,9 @@ function renderScene(){
   if(scene==='title'){
     const today=dailyId();
     app.innerHTML=`<div class="grow"></div>
-    ${tv(sprite('aunt'),'SPECIAL REPORT','Local great-aunt hands out money, SEC "not watching"','DOW ▲ 12 · SOUP ▲ 3 · ETHICS ▼ 40 · GOAT ▲ 40 · LOBBYISTS ▲ 9 · YOUR RENT ▲ ▲ ▲','INHERITANCE HOUR')}
+    ${tv(sprite('aunt'),'SPECIAL REPORT','Great aunt dies, leaves $100,000 to least responsible relative','DOW ▲ 12 · SOUP ▲ 3 · ETHICS ▼ 40 · GOAT ▲ 40 · LOBBYISTS ▲ 9 · YOUR RENT ▲ ▲ ▲','INHERITANCE HOUR')}
     <div class="col pop"><div class="logo">GREAT AUNT CAPITAL</div>
-      <div style="font-size:22px">Turn Mildred’s $100,000 into a town of your own. Trade on tips, buy the rumor, pay rent every night. Don’t go broke. Don’t get caught.</div></div>
+      <div style="font-size:22px">You’ve inherited $100,000 from your great aunt. Try to become the richest person in the world.</div></div>
     ${meta.runs?`<div class="box panel col" style="gap:4px">
       <div class="row between"><span class="muted">Pearls</span><span class="yel tab">${meta.pearls}</span></div>
       <div class="row between"><span class="muted">Longest run</span><span class="tab">${meta.best?meta.best+' days':'none yet'}</span></div>
@@ -758,10 +758,10 @@ function renderScene(){
     const A=AUNTS[setup.aunt], ok=auntOpen(A), M=MOODS[setup.mood];
     app.innerHTML=`<div class="h2" style="padding-top:8px">NEW RUN</div>${hasResume()?'<div class="tip">Starting a new run replaces your saved run. Back returns to Resume.</div>':''}
     <div class="col scroll grow">
-      <div class="box panel col pick"><div class="lbl">Who's paying</div>
+      <div class="box panel col pick"><div class="lbl">Whose estate</div>
         <div class="row between"><button class="ghost sm" data-act="aunt" data-d="-1">◀</button><div class="d pickname">${A.name}</div><button class="ghost sm" data-act="aunt" data-d="1">▶</button></div>
         <div>${ok?A.txt:`<span class="muted">Locked. ${A.hint}</span>`}</div></div>
-      <div class="box panel col pick"><div class="lbl">Mildred's mood</div>
+      <div class="box panel col pick"><div class="lbl">Her mood</div>
         <div class="row between"><button class="ghost sm" data-act="mood" data-d="-1">◀</button><div class="d pickname">${M.name}</div><button class="ghost sm" data-act="mood" data-d="1">▶</button></div>
         <div>${M.txt}${setup.mood?` <span class="yel">Pearls +${setup.mood*25}%.</span>`:''}</div>
         <div class="muted" style="font-size:18px">${meta.mood<4?`Beat a Final Boss (day ${QUARTER*4}) on ${MOODS[meta.mood].name} to unlock ${MOODS[meta.mood+1].name}.`:'Every mood unlocked.'}</div></div>
@@ -774,7 +774,7 @@ function renderScene(){
     const H2=(t,b)=>`<div><b class="yel">${t}.</b> ${b}</div>`;
     app.innerHTML=`<div class="h2" style="padding-top:8px">HOW TO PLAY</div>
     <div class="box panel col scroll grow" style="font-size:21px">
-      ${H2('The goal','Mildred gave you $100,000. Rent is due every night and it keeps going up. Run out of cash and the run is over.')}
+      ${H2('The goal','You inherited $100,000 from your great aunt. Try to become the richest person in the world. Rent is due every night and it keeps going up. Run out of cash and the run is over.')}
       ${H2('Morning news','The anchor says which sectors should rise ▲ or fall ▼ today. He is usually right. Rex Shouter yells a hot pick. Rex is right about half the time, and owns all of them.')}
       ${H2('Swipe','Each certificate is a stock with a sector, a risk level and a rumor. Pick a position size. Swipe right to buy, left to pass.')}
       ${H2('Hands','Everything you buy in a day is your hand. Two in one sector is a Pair Trade, three is a Sector Sweep, four in different sectors is an Index Fund. Better hands start with more MULT. Tap Hands at the top to see them all.')}
@@ -800,7 +800,7 @@ function renderScene(){
     const crawl=(movers.length?'LAST CLOSE · '+movers.map(co=>`${co.tick} ${fmtP(co.price)} ${co.last>=0?'▲':'▼'} ${Math.abs(co.last*100).toFixed(1)}%`).join(' · ')
       :run.hand.length?'OPENING BELL · '+run.hand.map(c=>`${c.co.tick} ${fmtP(c.co.price)} NEW`).join(' · '):'MARKET CLOSED')+' · '+run.fluff.toUpperCase();
     const ev=run.event, tag=ev.isBoss?(ev.final?'FINAL BOSS':'BOSS LANDLORD'):ev.id==='quiet'?'MARKET MORNING':'BREAKING';
-    const extra=[run.ate?`Mildred's Cat ate your ${run.ate}.`:'',...(run.delisted||[])].filter(Boolean);
+    const extra=[run.ate?`Great Aunt's Cat ate your ${run.ate}.`:'',...(run.delisted||[])].filter(Boolean);
     app.innerHTML=hud()+`<div class="col scroll grow">
       ${tv(sprite(ev.isBoss?'aunt':'anchor'),tag,ev.id==='quiet'?`Day ${run.day}. Here's what's moving.`:`${ev.name}: ${evTxt()}`,crawl,ev.isBoss?'RENT IS DUE':'MARKET MORNING',run.heat)}
       ${tip('Sectors marked ▲ should rise today. Buy their stocks. Avoid ▼.')}
@@ -824,7 +824,7 @@ function renderScene(){
   }
   if(scene==='resolve'){
     const r=run.result, profit=r.gains*r.mult, line=(label,v,cls='')=>`<span class="${cls}">${label}</span><span class="${cls||(v>=0?'up':'down')}">${v>=0?'+':'−'}${fmt(Math.abs(v))}</span>`;
-    const msgs=[r.saved&&`You pawned Aunt's Pearls for ${fmt(r.saved)}. She will never know. Probably.`,r.prize&&`You beat ${run.event.name}. Prize: a ${r.prize} memo.`,r.moodUp&&`New mood unlocked: ${r.moodUp}.`].filter(Boolean);
+    const msgs=[r.saved&&`You pawned Aunt's Pearls for ${fmt(r.saved)}. She would have wanted that. Probably not.`,r.prize&&`You beat ${run.event.name}. Prize: a ${r.prize} memo.`,r.moodUp&&`New mood unlocked: ${r.moodUp}.`].filter(Boolean);
     app.innerHTML=hud()+`<div class="row between resolve-head"><div class="h2">CLOSING BELL · DAY ${run.day}</div>${isBoss(run.day)?`<span class="pill down">${run.event.name.toUpperCase()}</span>`:''}</div>
     <div id="board" class="board box heat${r.shown?run.heat:0}"><div class="bl"><span class="lbl">Gains</span><span id="tG" class="tab">${fmtK(r.shown?r.gains:0)}</span></div><span class="xx">×</span><div class="bl"><span class="lbl">MULT</span><span id="tM" class="tab mlt">${fmtM(r.shown?r.mult:1)}</span></div><span class="xx">=</span><div class="bl"><span class="lbl">Profit</span><span id="tP" class="tab up">${fmtK(r.shown?profit:0)}</span></div><progress class="calculation-track" id="calculationProgress" max="1" value="${r.shown?1:0}" aria-label="Report calculation"></progress></div>
     <div class="settlement-summary ${run.dead?'is-loss':''}" id="settlementSummary" ${r.shown?'':'hidden'} role="status">
@@ -856,7 +856,7 @@ function renderScene(){
   }
   if(scene==='town'){
     const n=lotCount();
-    app.innerHTML=hud()+`<div class="row between"><div class="h2">MILDRED'S TOWN</div><span class="muted tab">${n}/16 lots</span></div>
+    app.innerHTML=hud()+`<div class="row between"><div class="h2">YOUR TOWN</div><span class="muted tab">${n}/16 lots</span></div>
     <div class="col scroll grow">
       ${run.town.map(d=>`<div class="col" style="gap:6px"><div class="row between"><span class="lbl" style="background:${d.c};color:var(--ink);padding:3px 6px">${d.name} · ${d.sec}</span>${monopoly(d.id)?`<span class="pill yel">MONOPOLY ×${monoMult(d.id)}</span>`:''}</div>
         ${d.gim?`<div class="muted" style="font-size:17px;margin-top:-4px">${d.txt}</div>`:''}
@@ -869,22 +869,22 @@ function renderScene(){
   }
   if(scene==='tycoon'){
     app.innerHTML=`<div class="grow"></div>
-    ${tv(sprite('aunt'),'BREAKING','Great-nephew now owns the entire town, raises rent on everyone','EVERY LOT ▲ · MILDRED ▲ ▲ ▲ · TENANTS ▼ ▼ · TOWN RENAMED AFTER YOU','INHERITANCE HOUR',2)}
+    ${tv(sprite('aunt'),'BREAKING','Heir now owns the entire town, raises rent on everyone','EVERY LOT ▲ · TENANTS ▼ ▼ · TOWN RENAMED AFTER YOU','INHERITANCE HOUR',2)}
     <div class="logo">TYCOON</div>
-    <div style="font-size:22px">You own all 16 lots and earn ${fmt(totalInc())} every night. Mildred framed your photo. +25 pearls, and +10 more when this run ends.</div>
-    <div style="font-size:20px" class="yel">Keep playing for endless mode: rent compounds every day. How big can the number get?</div>
+    <div style="font-size:22px">You own all 16 lots and earn ${fmt(totalInc())} every night. +25 pearls, and +10 more when this run ends.</div>
+    <div style="font-size:20px" class="yel">Still not the richest person in the world. Keep going: rent compounds every day.</div>
     <button data-act="town2">Keep playing</button><div class="grow"></div>`; return;
   }
   if(scene==='ascend'){
     app.innerHTML=`<div class="grow"></div>
-    ${tv(sprite('aunt'),'SIGNAL LOST','MORE MONEY THAN MONEY','▓▒░ ▓▒░ ▓▒░ ▓▒░ ▓▒░','???',3)}
+    ${tv(sprite('aunt'),'SIGNAL LOST','RICHEST PERSON IN THE WORLD','▓▒░ ▓▒░ ▓▒░ ▓▒░ ▓▒░','???',3)}
     <div class="logo">${fmt(netWorth())}</div>
-    <div style="font-size:24px">The static clears. Mildred is on every channel at once. "I knew you could do it, dear."</div>
+    <div style="font-size:24px">The static clears. Your great aunt is on every channel at once. "I knew you could do it, dear."</div>
     <button data-act="next">Keep going anyway</button><div class="grow"></div>`; return;
   }
   if(scene==='over'){
     app.innerHTML=`<div class="grow"></div>
-    ${tv(sprite('aunt'),'BREAKING','Great-nephew goes broke. No bailout. Aunt "not angry, just disappointed."','PEARLS ▲ · DIGNITY ▼ · RENT ▲ ▲ ▲ · NOT TOO BIG TO FAIL','INHERITANCE HOUR')}
+    ${tv(sprite('aunt'),'BREAKING','Heir goes broke. No bailout. Great aunt spinning in grave.','PEARLS ▲ · DIGNITY ▼ · RENT ▲ ▲ ▲ · NOT TOO BIG TO FAIL','INHERITANCE HOUR')}
     <div class="logo" style="color:var(--red)">BROKE</div>
     <div class="box panel col" style="gap:4px">
       <div class="row between"><span class="muted">Days lasted</span><span class="tab">${run.day}</span></div>

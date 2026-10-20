@@ -3,8 +3,8 @@
 Guidance for AI coding agents (Codex, Claude) working in this repo.
 
 ## What this is
-A mobile-first pixel roguelite with a Balatro-style scoring engine. Great Aunt Mildred gives you
-$100,000. Each in-game day you watch a morning finance news show, swipe right/left on stocks from a
+A mobile-first pixel roguelite with a Balatro-style scoring engine. You inherit $100,000 from
+your great aunt (never named) and try to become the richest person in the world. Each in-game day you watch a morning finance news show, swipe right/left on stocks from a
 persistent market deck, and at the Closing Bell your gains are multiplied by MULT built from your
 portfolio hand and perks (triggered left to right). Every quarter ends with a Boss Landlord. Buy a
 procedurally drawn town, use Memos/Almanacs/Envelopes, and pay rising rent. Go broke

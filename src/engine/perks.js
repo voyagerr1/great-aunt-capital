@@ -15,7 +15,7 @@ export const PERK_FX={
   cat:{end:(x,p)=>{const m=1+.2*(p.st.days||0);if(m>1)x.x(m,'Compound Cat')}},
   pump:{end:x=>{if(x.run.streak)x.add(x.run.streak,'Pump & Dump Club')}},
   ponzi:{end:x=>{if(x.run.sold)x.add(2*x.run.sold,'Ponzi Pete')}},
-  mcat:{end:x=>x.x(3,"Mildred's Cat")},
+  mcat:{end:x=>x.x(3,"Great Aunt's Cat")},
   bag:{end:x=>{if(x.bought.some(c=>c.eff<0))x.add(3,'Bagholder')}},
   clock:{end:x=>{if(x.run.day%2===0)x.x(2,'Broken Clock')}},
   specialist:{end:x=>{if(['sweep','corner','full'].includes(x.hand))x.x(2,'Sector Specialist')}},
@@ -24,6 +24,6 @@ export const PERK_FX={
   loyalty:{end:x=>{if((x.run.closes+1)%4===0)x.x(4,'Loyalty Card')}},
   gnome:{end:x=>x.add(1+2*x.run.bossesBeat,'Lawn Gnome')},
   swiper:{end:x=>{if(x.run.bought)x.add(Math.round(x.run.bought*.25*100)/100,'Swipe Right Sally')}},
-  mildred:{end:x=>{const m=Math.floor(x.run.day/4);if(m>1)x.x(m,'Mildred Herself')}},
+  mildred:{end:x=>{const m=Math.floor(x.run.day/4);if(m>1)x.x(m,"Great Aunt's Ghost")}},
   hedge:{end:x=>{const ls=x.bought.filter(c=>c.loss<0);if(ls.length>=2)x.cash(-ls.reduce((s,c)=>s+c.loss,0)*.3,'Hedge Hog')}},
 };

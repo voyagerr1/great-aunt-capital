@@ -3,11 +3,11 @@
 Version 0.7 ("the focus update": startups cut, town simplified, clearer UI). Numbers live in `src/data/content.js`, `src/engine/` and `src/game.js`; this doc explains them.
 
 ## Pitch
-Great Aunt Mildred hands you $100,000. Read the morning news, swipe on stock certificates, stack MULT
+You've inherited $100,000 from your great aunt (she is never named). Try to become the richest person in the world. Read the morning news, swipe on stock certificates, stack MULT
 at the Closing Bell, survive the Boss Landlords and buy the town. Most runs end
 broke. A few break wide open, and those are the ones people remember.
 
-Look: Mildred's Windows 95–98 personal finance software. Teal desktop, gray beveled application
+Look: your great aunt's Windows 95–98 personal finance software. Teal desktop, gray beveled application
 windows, navy title bars, Tahoma/system fonts and the existing pixel portraits and buildings.
 Morning news arrives in Market Mail. Stocks appear one at a time as white order documents, with
 their chart, sector, risk and rumor. Closing Bell calculations fill a segmented progress bar above
@@ -15,12 +15,12 @@ a spreadsheet-style statement. Town lots read as a Property Explorer, and detail
 The desktop account sidebar stacks above the market on phones. No CRT overlay or downloaded fonts.
 
 ## Run setup
-- **Aunts** (starting decks): Mildred (classic), Bernice (CRYPTO/MEME market, moves 1.5x; 3 runs),
-  Gloria ($25K + the cheapest lot in district 2, no market on day 1; last 10 days),
+- **Aunts** (starting decks): Your Great Aunt (classic), The Crypto Aunt (CRYPTO/MEME market, moves 1.5x; 3 runs),
+  The Frugal Aunt ($25K + the cheapest lot in district 2, no market on day 1; last 10 days),
   The Twin Aunts (+2 broker offers, 3rd consumable slot, rent +20%; own a district),
-  Aunt Ruth's Ghost ($10K + 10% of best peak, 4 Haunted companies; reach $5M).
-- **Mildred's Mood** (stakes, cumulative): Pleased → Concerned (rent +25%) → Disappointed (rumors −10%)
-  → Furious (perks +50% price, one fewer offer) → Writing You Out of the Will (−$50K start, Final Boss every
+  The Haunted Aunt ($10K + 10% of best peak, 4 Haunted companies; reach $5M).
+- **Her mood** (stakes, cumulative): Pleased → Concerned (rent +25%) → Disappointed (rumors −10%)
+  → Furious (perks +50% price, one fewer offer) → Haunting You (−$50K start, Final Boss every
   other quarter). Beat a Final Boss on your highest mood to unlock the next. Pearls +25% per mood level.
 - **Seeds.** Every run is seeded (mulberry32 in `util.js`). Same seed = same town, market and boss order
   (as long as you make the same choices). The **Daily Market** uses `DAILY-YYYYMMDD`.
@@ -105,14 +105,14 @@ Editions roll on 17% of offers (Embossed 10%, Holographic 5%, Counterfeit 2%) an
 Sell any perk for half its price; Ponzi Pete counts every sale. Hooks live in `src/engine/perks.js`.
 42 perks; see `PERKS` for the list. Scaling ones: Compound Cat (+x0.2 per day held, reset by selling a
 lot), Lawn Gnome (+2 per boss beaten), Swipe Right Sally (+0.25 per
-stock bought), Mildred Herself (x1 per 4 days).
+stock bought), Great Aunt's Ghost (x1 per 4 days).
 
 ## Boss Landlords
 - The last day of every quarter (day 4, 8, 12...). The boss is drawn at the start of the quarter and shown in
   the boss bar under your perks (tap it for details). Boss rent is 1.5x on top of the boss's own effect.
-- Bosses (`BOSSES`): The Goose, The Auditor, Mildred's Birthday, The Shortseller, Blackout Barry,
+- Bosses (`BOSSES`): The Goose, The Auditor, The Funeral Home, The Shortseller, Blackout Barry,
   Rex Shouter Himself, The Tax Man, The Hedge Fund Bro, The Margin Clerk, Wall Street, The SEC Investigator, The Repo Man.
-- Final Bosses every 4th quarter (`FINALS`): Mildred's Accountant, The Family Lawyer, The Estranged Cousin, The Executor.
+- Final Bosses every 4th quarter (`FINALS`): The Estate Accountant, The Family Lawyer, The Estranged Cousin, The Executor.
 - Survive: bounty of one night's rent, a free Memo, +1 bosses beaten (Lawn Gnome, pearls).
 
 ## Events and story arcs
@@ -122,7 +122,7 @@ stock bought), Mildred Herself (x1 per 4 days).
   with invented people and companies only; never name real people or real tickers.
 - **Story arcs** (`ARCS`): from day 3, 14% chance per day to start one you haven't seen this run. 3 steps told
   through the news, each with optional fx: The Goose Lawsuit (branching verdict), Rex's Comeback Tour,
-  First Contact (adds ALIEN), The Bee Situation (adds BEES), Mildred's Cruise, The Great Pickle Heist,
+  First Contact (adds ALIEN), The Bee Situation (adds BEES), The Safe Deposit Box, The Great Pickle Heist,
   The Toaster Uprising, The Senator's Portfolio, The Pump and Dump, The Exchange Collapse (branching verdict).
 
 ## Real estate (procedural town)
@@ -142,7 +142,7 @@ Day 10 ≈ $41K, day 20 ≈ $273K, day 30 ≈ $1.5M.
 
 ## Big numbers
 `fmt`/`fmtK` go K, M, B, T, Qa, Qi, Sx, Sp, Oc, No, Dc, then e-notation. At 1e100 net worth the screen cuts to
-static and Mildred says one line. Infinity prints as `naneinf`.
+static, the headline reads RICHEST PERSON IN THE WORLD, and your great aunt says one line. Infinity prints as `naneinf`.
 
 ## Meta progression (The Will)
 Pearls on death = (days − 1 + ⌊3·log2(peak / $100K)⌋ + bosses beaten + 10 if Tycoon) × (1 + 0.25 × mood).

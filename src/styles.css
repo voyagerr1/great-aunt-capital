@@ -1,4 +1,4 @@
-/* Great Aunt Capital: Mildred's late-90s personal finance suite. */
+/* Great Aunt Capital: your great aunt's late-90s personal finance suite. */
 :root{--navy:#c0c0c0;--navy2:#d4d0c8;--navy3:#404040;--yellow:#000080;--red:#a52020;--green:#006b37;--cream:#fff;--mint:#eef5ed;--ink:#161616;--steel:#505050;--white:#161616;--shadow:#808080;--display:Tahoma,"MS Sans Serif",Arial,sans-serif;--body:Tahoma,"MS Sans Serif",Arial,sans-serif;--raised:inset 1px 1px #fff,inset -1px -1px #404040,inset 2px 2px #dfdfdf,inset -2px -2px #808080;--sunken:inset 1px 1px #808080,inset -1px -1px #fff,inset 2px 2px #404040;color-scheme:light}
 *{box-sizing:border-box}[hidden]{display:none!important}img{max-width:100%}html,body{height:100%;margin:0}
 body{font:14px/1.4 var(--body);background:#008080;color:var(--ink);display:flex;flex-direction:column;align-items:center;padding:22px max(16px,env(safe-area-inset-right,0px)) 48px;gap:18px;-webkit-tap-highlight-color:transparent}

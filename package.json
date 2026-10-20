@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.7.0",
   "type": "module",
-  "description": "Pixel roguelite: turn Great Aunt Mildred's $100,000 into a town-owning empire.",
+  "description": "Pixel roguelite: inherit $100,000 from your great aunt and become the richest person in the world.",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
