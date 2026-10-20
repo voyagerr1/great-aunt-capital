@@ -1,6 +1,6 @@
 // Simple bot players used by the balance sim and tests.
-// They are deliberately naive: a real player reading the news should beat them.
-export function playRun(api, { strategy = 'balanced', size = 0.25, maxDays = 120 } = {}) {
+// They are deliberately naive: a real player reading the news, ordering perks and building hands should beat them.
+export function playRun(api, { strategy = 'balanced', size = 0.25, shop = true, maxDays = 120 } = {}) {
   api.resetMeta();
   api.newRun();
   let run = api.run;
@@ -13,16 +13,20 @@ export function playRun(api, { strategy = 'balanced', size = 0.25, maxDays = 120
     run.ventures.forEach(v => { if (v.follow) api.followOn(v.name, run.cash > v.follow * 3); });
     run.holdings.forEach(h => { if (h.value > h.basis * 2.5 || h.age > 3) { run.cash += h.value; h.sold = true; } });
     run.holdings = run.holdings.filter(h => !h.sold);
+    if (shop) {
+      api.openShop();
+      const keep = 3 * api.rentFor(run.day + 1);
+      api.shop.forEach((o, i) => { if ((o.t === 'perk' || o.k === 'alm') && run.cash - o.price > keep) api.buyOffer(i); });
+      for (let i = run.cons.length - 1; i >= 0; i--) if (run.cons[i].k === 'alm') api.useCons(i);
+    }
     if (strategy !== 'stocks') {
       const keep = 2 * api.rentFor(run.day + 1);
-      for (const id of LOT_ORDER) if (!run.props[id] && run.cash - api.lotPrice(LOTS_BY_ID[id]) > keep) api.buyLot(id);
+      for (const l of run.lots) if (!run.props[l.id] && run.cash - api.lotPrice(l) > keep) api.buyLot(l.id);
     }
     if (run.tycoon) break;
     api.startDay();
     run = api.run;
   }
-  return { days: run.day, peak: run.peak, tycoon: !!run.tycoon };
+  return { days: run.day, peak: run.peak, tycoon: !!run.tycoon, bestMult: run.best ? run.best.mult : 1, bosses: run.bossesBeat };
 }
-let LOT_ORDER = [], LOTS_BY_ID = {};
-export function setLots(lots) { LOT_ORDER = lots.map(l => l.id); LOTS_BY_ID = Object.fromEntries(lots.map(l => [l.id, l])); }
 export const quantile = (arr, q) => [...arr].sort((a, b) => a - b)[Math.floor(q * (arr.length - 1))];

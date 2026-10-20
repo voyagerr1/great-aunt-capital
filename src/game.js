@@ -1,98 +1,235 @@
-// Game state, day flow, rendering and input. Imported by main.js.
-import { R, pick, rr, clamp, shuffle, fmt, fmtK, QUARTER, SIZES, ROUNDS, pct } from './util.js';
-import { VOL, SECTORS, S, N1, N2, N3, BULL, BEAR, NEWS, FLUFF, IDEA_X, IDEA_Y, SU_A, SU_B, FOUNDERS, PITCH_LINES, TRAITS, STATS, ACQUIRERS, BUSTS, HOLD_UP, HOLD_DOWN, HAIRS, HOODIES, REX_BUY, REX_SELL, PIVOT_TO, PERKS, P, DISTRICTS, LOTS, L, LVL_VAL, LVL_INC, EVENTS, EDITIONS, DEPTH, UPGRADES } from './data/content.js';
+// Game state, day flow, Closing Bell scoring, rendering and input. Imported by main.js.
+import { R, pick, rr, clamp, shuffle, fmt, fmtK, fmtM, QUARTER, SIZES, ROUNDS, pct, seedRng, makeSeed } from './util.js';
+import { VOL, SECTORS, S, N1, N2, N3, BULL, BEAR, NEWS, FLUFF, IDEA_X, IDEA_Y, SU_A, SU_B, FOUNDERS, PITCH_LINES, TRAITS, STATS, ACQUIRERS, BUSTS,
+  HOLD_UP, HOLD_DOWN, HAIRS, HOODIES, REX_BUY, REX_SELL, REX_REACT, PIVOT_TO, PERKS, P, RARITY, PERK_EDS, HANDS, H, MEMOS, ENVELOPES, ENH, SEALS,
+  DISTRICT_POOL, buildLots, LVL_VAL, LVL_INC, EVENTS, BOSS_RENT, BOSSES, FINALS, ARCS, EDITIONS, DEPTH, AUNTS, MOODS, UPGRADES } from './data/content.js';
+import { qualifying } from './engine/hands.js';
+import { PERK_FX } from './engine/perks.js';
 import { sprite, bldg } from './sprites.js';
+import { sfx, unlock, setMuted } from './audio.js';
+import { shareCertificate } from './share.js';
 
 /* ===== State ===== */
 const KEY='greataunt.meta.v1';
 function loadMeta(){let m=null;try{m=JSON.parse(localStorage.getItem(KEY))}catch(e){}
-  const base={pearls:0,up:{allowance:0,hand:0,accuracy:0,discount:0,starter:0,cable:0,deed:0,rentctl:0,rolodex:0},best:0,bestCash:0,runs:0};
+  const base={pearls:0,up:{allowance:0,hand:0,accuracy:0,discount:0,starter:0,cable:0,deed:0,rentctl:0,rolodex:0,pocket:0},best:0,bestCash:0,runs:0,
+    mood:0,mono:0,tycoons:0,mute:0,daily:null,bestDay:null};
   if(m){base.up=Object.assign(base.up,m.up||{});delete m.up;Object.assign(base,m)} return base;}
 function saveMeta(){try{localStorage.setItem(KEY,JSON.stringify(meta))}catch(e){}}
 let meta=loadMeta(), run=null, scene='title', shop=null;
-const has=id=>run&&run.perks.includes(id);
-const fx=k=>run&&run.event&&run.event.fx?run.event.fx[k]:undefined;   // today's event effect, see EVENTS
-const ED=c=>EDITIONS[c.ed]||{};
-const rentFor=d=>Math.round((3+Math.pow(d,1.5)*1.2)*1000*(has('haven')?.6:1)*(1-.05*meta.up.rentctl));
-function rentTonight(){if(has('umbrella')&&run.day%QUARTER===0)return 0;const f=fx('rent');return Math.round(rentFor(run.day)*(f===undefined?1:f))}
+const setup={aunt:0,mood:0};
+setMuted(meta.mute);
+
+/* ===== Perks ===== */
+const newPerk=(id,ed=null)=>({id,ed,st:{}});
+// Active perk slots, left to right. The Intern copies its right neighbour; bosses can switch slots off for the day.
+function activePerks(){
+  if(!run) return [];
+  const off=i=>run.off&&run.off.includes(i), out=[];
+  run.perks.forEach((p,i)=>{
+    if(off(i)) return;
+    const nb=run.perks[i+1];
+    if(p.id==='intern'&&nb&&nb.id!=='intern'&&!off(i+1)) out.push({id:nb.id,p:nb,ed:p.ed,slot:i,via:'The Intern'});
+    else out.push({id:p.id,p,ed:p.ed,slot:i});
+  });
+  return out;
+}
+const has=id=>activePerks().some(a=>a.id===id);
+const countPerk=id=>activePerks().filter(a=>a.id===id).length;
+const perkSlots=()=>run.perks.filter(p=>p.ed!=='fake').length;
+const slotFree=()=>perkSlots()<5;
+const resetCat=()=>run.perks.forEach(p=>{if(p.id==='cat')p.st.days=0});
+
+/* ===== Rules helpers ===== */
+const fx=k=>run&&run.fx?run.fx[k]:undefined;   // today's effects: event + story arc + boss, see EVENTS
+const ED=co=>EDITIONS[co.ed]||{};
+const isBoss=d=>d%QUARTER===0;
+const isFinal=d=>isBoss(d)&&(d/QUARTER)%(run&&run.mood>=4?2:4)===0;
+const nextBossDay=d=>Math.ceil(d/QUARTER)*QUARTER;
+// Rent: polynomial early, compounding after day 12 so MULT engines have something to chase. Endless mode compounds harder.
+const RENT_GROW=1.12;
+const baseRent=d=>(3+Math.pow(d,1.5)*1.2)*1000*Math.pow(RENT_GROW,Math.max(0,d-12));
+function rentFor(d){
+  let r=baseRent(d)*(has('haven')?.6:1)*(1-.05*meta.up.rentctl)*(run&&run.mood>=1?1.25:1)*(run&&run.aunt==='twins'?1.2:1);
+  if(run&&run.endless) r*=Math.pow(1.35,Math.max(0,d-run.tyDay));
+  return Math.round(r);
+}
+function rentTonight(){
+  const d=run.day; if(isBoss(d)&&has('umbrella')) return 0;
+  const f=fx('rent');
+  return Math.round(rentFor(d)*(isBoss(d)?BOSS_RENT:1)*(f===undefined?1:f)*(run.rentX&&d<=run.rentXUntil?run.rentX:1));
+}
+const infl=()=>Math.max(1,baseRent(run.day)/12000);   // shop prices track rent so they stay meaningful
 function lot(c){let budget=run.size>=1?run.cash:Math.min(run.cash,run.dayStart*run.size);if(fx('cap'))budget=Math.min(budget,run.dayStart*fx('cap'));
-  const sh=Math.max(0,Math.floor(budget/c.price));return {sh,cost:sh*c.price}}
+  const sh=Math.max(0,Math.floor(budget/c.co.price));return {sh,cost:sh*c.co.price}}
 // Big orders move the price against you: gains are cut by depth/(depth+stake).
-const impact=(c,stake)=>{const d=DEPTH[c.vol]*(ED(c).depth||1);return d/(d+stake)};
+const impact=(c,stake)=>{const d=DEPTH[c.co.vol]*(ED(c.co).depth||1);return d/(d+stake)};
 const fmtP=n=>n<10?'$'+n.toFixed(2):fmt(n);
 const flare=()=>!!fx('flare');
-const rumorAcc=()=>flare()?.5:Math.min(.95,.65+.05*meta.up.accuracy+(has('doom')?.15:0));
-const newsAcc=()=>flare()?.5:Math.min(.97,.8+.05*meta.up.cable+(has('nephew')?.15:0));
-const rexAcc=()=>flare()?.5:(has('nephew')?.78:.55);
-function lotPrice(l){return l.price*run.hidx}
+const rumorAcc=()=>flare()?.5:Math.min(.95,.65+.05*meta.up.accuracy+(has('doom')?.15:0)-(run.mood>=2?.1:0));
+const newsAcc=()=>has('hairpiece')?1:flare()?.5:Math.min(.97,.8+.05*meta.up.cable+(has('nephew')?.15:0));
+const rexAcc=()=>has('rexghost')?1:fx('rexAcc')||(flare()?.5:has('nephew')?.78:.55);
+const handMult=id=>{const h=H(id);return h.base+h.per*(run.hands[id].lvl-1)};
+const bestHand=bought=>{let b=null;qualifying(bought,run.hand).forEach(id=>{if(!b||handMult(id)>=handMult(b))b=id});return b};
+
+/* ===== Town ===== */
+const L=id=>run.lots.find(l=>l.id===id);
+const D=id=>run.town.find(d=>d.id===id);
+const gim=l=>D(l.dist).gim||{};
+function lotPrice(l){const g=gim(l);return l.price*(g.price||1)*(g.steady?1:run.hidx)}
 function propVal(id){const p=run.props[id];return lotPrice(L(id))*LVL_VAL[p.lvl-1]*p.dmg}
-function monopoly(d){return LOTS.filter(l=>l.dist===d).every(l=>run.props[l.id])}
-const monoMult=()=>has('zoning')?2:1.5;
-function propInc(id){const p=run.props[id],l=L(id);return lotPrice(l)*l.yld*LVL_INC[p.lvl-1]*p.dmg*(monopoly(l.dist)?monoMult():1)*(has('landlord')?1.4:1)}
-// tonight=true applies district events (Tourist Season, Blackout...)
-const totalInc=tonight=>Object.keys(run.props).reduce((s,id)=>{const m=tonight&&fx('dist')?fx('dist')[L(id).dist]:undefined;return s+propInc(id)*(m===undefined?1:m)},0);
+function monopoly(d){return run.lots.filter(l=>l.dist===d).every(l=>run.props[l.id])}
+const monoMult=d=>Math.max((D(d).gim||{}).mono||0,has('zoning')?2:1.5);
+// tonight=true rolls the nightly gimmicks (casino, ghosts) and applies today's district events
+function propInc(id,tonight){
+  const p=run.props[id],l=L(id),g=gim(l);
+  let inc=lotPrice(l)*l.yld*LVL_INC[p.lvl-1]*p.dmg*(monopoly(l.dist)?monoMult(l.dist):1)*(has('landlord')?1.4:1)*(g.inc||1);
+  if(g.crowd) inc*=1+g.crowd*Object.keys(run.props).length;
+  if(g.trend){const t=run.trends&&run.trends[g.trend];if(t===1)inc*=2;else if(t===-1)inc*=.5}
+  if(tonight){
+    if(g.casino) inc*=rr(0,3);
+    if(g.ghost&&R()<g.ghost) inc=0;
+    if(g.boss&&isBoss(run.day)) inc*=g.boss;
+    const m=fx('dist')&&fx('dist')[l.dist]; if(m!==undefined) inc*=m;
+    if(fx('propOff')) inc=0;
+  }
+  return inc;
+}
+const totalInc=tonight=>Object.keys(run.props).reduce((s,id)=>s+propInc(id,tonight),0);
 const propTotal=()=>Object.keys(run.props).reduce((s,id)=>s+propVal(id),0);
 const sellPrice=id=>propVal(id)*(has('flipper')?1.2:.95);
 const renoCost=id=>(run.props[id].lvl>=3?lotPrice(L(id))*.2:lotPrice(L(id))*.4*run.props[id].lvl)*(has('manager')?.7:1);
-const netWorth=()=>run.cash+propTotal()+run.holdings.reduce((s,h)=>s+h.value,0)+run.ventures.reduce((s,v)=>s+v.ask*v.m,0);
-function snapshot(){return {nw:netWorth(),cash:run.cash,prop:propTotal(),vent:run.ventures.reduce((s,v)=>s+v.ask*v.m,0),hold:run.holdings.reduce((s,h)=>s+h.value,0)}}
+const lotsIn=sec=>Object.keys(run.props).filter(id=>D(L(id).dist).sec===sec).length;
+const ventVal=()=>run.ventures.reduce((s,v)=>s+v.ask*v.m,0);
+const holdVal=()=>run.holdings.reduce((s,h)=>s+h.value,0);
+const netWorth=()=>run.cash+propTotal()+holdVal()+ventVal();
+function snapshot(){return {nw:netWorth(),cash:run.cash,prop:propTotal(),vent:ventVal(),hold:holdVal()}}
 function buyLot(id){
-  const pr=lotPrice(L(id)); if(run.props[id]||run.cash<=pr) return;
+  const l=L(id),pr=lotPrice(l); if(run.props[id]||run.cash<=pr) return;
   run.cash-=pr; run.props[id]={lvl:1,dmg:1};
-  if(!run.tycoon&&LOTS.every(l=>run.props[l.id])){run.tycoon=true;meta.pearls+=25;meta.tycoons=(meta.tycoons||0)+1;saveMeta();scene='tycoon'}
+  if(monopoly(l.dist)&&!meta.mono){meta.mono=1;saveMeta()}
+  if(!run.tycoon&&run.lots.every(x=>run.props[x.id])){run.tycoon=true;meta.pearls+=25;meta.tycoons=(meta.tycoons||0)+1;saveMeta();scene='tycoon'}
   render();
 }
 function weighted(list){let t=list.reduce((s,e)=>s+e.w,0),x=R()*t;for(const e of list){x-=e.w;if(x<=0)return e}return list[0]}
 
+/* ===== Market deck =====
+   Each run has ~20 persistent companies. Every morning a handful are dealt as certificates.
+   Prices carry over, editions/stamps/seals stick, and companies can be shredded, cloned, merged or delisted. */
+function rollEdition(){let x=R();for(const [id,e] of Object.entries(EDITIONS)){if(x<e.w)return id;x-=e.w}return null}
+function newCompany(sec,o={}){
+  let a,b,tick;
+  for(let k=0;k<10;k++){a=pick(N1);b=pick(N2);tick=(a.slice(0,2)+b.slice(0,2)).toUpperCase();if(!run.deck.some(c=>c.tick===tick))break}
+  const ed='ed' in o?o.ed:rollEdition(), E=EDITIONS[ed]||{}, price=E.price?rr(...E.price):rr(3,400);
+  return {id:++run.coId,tick,name:`${a} ${b} ${pick(N3)}`,sec,vol:ed==='penny'?3:1+Math.floor(R()*3),price,list:price,ed,enh:o.enh||null,seal:null,seen:0,last:null,serial:Math.floor(rr(1000,99999))};
+}
+function buildDeck(){
+  const bern=['CRYPTO','CRYPTO','CRYPTO','MEME','MEME'];
+  for(let i=0;i<20;i++) run.deck.push(newCompany(run.aunt==='bernice'?pick(bern):run.sectors[i%run.sectors.length]));
+  if(run.aunt==='ruth') shuffle(run.deck.slice()).slice(0,4).forEach(co=>co.enh='haunted');
+}
+function addSector(sec){
+  if(run.sectors.includes(sec)) return;
+  run.sectors.push(sec); for(let i=0;i<3;i++) run.deck.push(newCompany(sec));
+}
+
 /* ===== Run flow ===== */
-function newRun(){
-  run={v:7,day:0,cash:100000+25000*meta.up.allowance,peak:0,perks:[],streak:0,reroll:5000,ventures:[],holdings:[],size:.25,props:{},hidx:1,hlast:0};
-  if(meta.up.deed) run.props.stand={lvl:1,dmg:1};
-  if(meta.up.starter) run.perks.push(pick(PERKS).id);
+function newRun(o={}){
+  const aunt=o.aunt||'mildred', mood=o.mood||0, seed=String(o.seed||makeSeed()).toUpperCase().slice(0,24);
+  seedRng(seed);
+  const town=shuffle(DISTRICT_POOL.slice()).slice(0,4);
+  run={v:8,seed,daily:o.daily||null,aunt,mood,day:0,cash:100000+25000*meta.up.allowance-(mood>=4?50000:0),peak:0,perks:[],cons:[],consMax:aunt==='twins'?3:2,
+    streak:0,reroll:5000,ventures:[],holdings:[],size:.25,props:{},hidx:1,hlast:0,town,lots:buildLots(town),deck:[],coId:0,
+    hands:Object.fromEntries(HANDS.map(h=>[h.id,{lvl:1,played:0}])),sold:0,bought:0,bossesBeat:0,closes:0,arc:null,arcsDone:[],ring:0,pumped:null,
+    sectors:SECTORS.filter(s=>!s.hidden).map(s=>s.id),heat:0,best:null,modal:null,log:[]};
+  if(aunt==='gloria'){run.cash=25000;run.props[run.lots[4].id]={lvl:1,dmg:1}}
+  if(aunt==='ruth') run.cash=10000+Math.round(Math.min(1e6,meta.bestCash*.1));
+  if(meta.up.deed) run.props[run.lots[0].id]={lvl:1,dmg:1};
+  if(meta.up.starter) run.perks.push(newPerk(pick(PERKS.filter(p=>p.r==='c')).id));
+  if(meta.up.pocket) run.cons.push({k:'alm',id:pick(HANDS).id});
+  buildDeck();
   run.start=run.cash; run.peak=run.cash; meta.runs++; saveMeta(); startDay();
 }
 function startDay(){
   settleFollowOns();
-  run.day++;
-  run.event=run.day===1?EVENTS[0]:weighted(EVENTS);
+  run.day++; const d=run.day;
+  if((d-1)%QUARTER===0) run.boss=isFinal(nextBossDay(d))?pick(FINALS):pick(BOSSES);
+  advanceArc();
+  run.event=isBoss(d)?{...run.boss,isBoss:true,final:isFinal(d)}:d===1?EVENTS[0]:weighted(EVENTS);
+  buildFx();
+  if(fx('addSector')) addSector(fx('addSector'));
   if(fx('gift')) run.cash+=fx('gift');
   if(fx('tax')) run.cash-=Math.round(run.cash*fx('tax'));
+  run.ate=null; if(has('mcat')&&run.cons.length){const i=Math.floor(R()*run.cons.length);run.ate=consName(run.cons[i]);run.cons.splice(i,1)}
+  if(fx('shufflePerks')) shuffle(run.perks);
+  run.off=[];
+  if(fx('disableRight')&&run.perks.length) run.off.push(run.perks.length-1);
+  if(fx('disableRandom')&&run.perks.length) run.off.push(Math.floor(R()*run.perks.length));
   run.dayStart=run.cash;
   run.prevSnap=run.snap||null; run.snap=snapshot();
-  const secs=shuffle(SECTORS.map(s=>s.id));
-  run.trends={[secs[0]]:R()<.5?1:-1,[secs[1]]:R()<.5?1:-1};
-  run.forced=Object.keys(fx('trend')||{}); Object.assign(run.trends,fx('trend')||{});
-  run.hand=deal(); run.idx=0;
+  const present=shuffle([...new Set(run.deck.map(c=>c.sec))]);
+  run.trends={}; present.slice(0,2).forEach(s=>run.trends[s]=R()<.5?1:-1);
+  const forced=Object.assign({},fx('trend')||{}); if(run.pumped){forced[run.pumped]=1;run.pumped=null}
+  run.forced=Object.keys(forced); Object.assign(run.trends,forced);
+  run.hand=(run.aunt==='gloria'&&d===1)?[]:deal(); run.idx=0;
   run.holdings.forEach(h=>{h.nextUp=R()<clamp(.5+h.drift*4+(has('whisper')?.12:0),.15,.9)});
   makeNews();
   const pc=Math.min(.95,(has('seed')?.8:.45)+.15*meta.up.rolodex);
-  run.pitch=(run.day>=2&&run.ventures.length<3&&R()<pc)?makePitch():null;
-  scene='news'; render();
+  run.pitch=(d>=2&&run.ventures.length<3&&R()<pc)?makePitch():null;
+  run.modal=null; scene='news';
+  if(isBoss(d)&&!headless) sfx.boss();
+  render();
+}
+// Merge the day's event, story-arc step and boss effects into run.fx.
+function buildFx(){
+  const f={};
+  const merge=o=>{if(!o)return;for(const k in o){
+    if(o[k]&&typeof o[k]==='object') f[k]=Object.assign({},f[k],o[k]);
+    else if(k==='rent'&&f.rent!==undefined) f.rent*=o[k];
+    else f[k]=o[k];}};
+  merge(run.event.fx); merge(run.arcStep&&run.arcStep.fx);
+  run.distName=null;
+  if(f.distRand!==undefined){const dd=pick(run.town);f.dist={[dd.id]:f.distRand};run.distName=dd.name}
+  run.fx=f;
+}
+const evTxt=()=>run.event.txt.replace('{D}',run.distName||'town');
+function advanceArc(){
+  run.arcStep=null;
+  if(run.arc){run.arc.step++;if(run.arc.step>=ARCS.find(a=>a.id===run.arc.id).steps.length)run.arc=null}
+  else if(run.day>=3&&R()<.14){const pool=ARCS.filter(a=>!run.arcsDone.includes(a.id));if(pool.length){const A=pick(pool);run.arc={id:A.id,step:0};run.arcsDone.push(A.id)}}
+  if(run.arc){const A=ARCS.find(a=>a.id===run.arc.id);let s=A.steps[run.arc.step];if(s.pick)s=pick(s.pick);run.arcStep={...s,name:A.name,n:run.arc.step+1,of:A.steps.length}}
 }
 function deal(){
-  const n=4+meta.up.hand+(has('daytrader')?1:0), out=[], tsecs=Object.keys(run.trends);
-  for(let i=0;i<n;i++){
-    const a=pick(N1),b=pick(N2), sec=S(R()<.5?pick(tsecs):pick(SECTORS).id), ed=rollEdition(), E=EDITIONS[ed]||{};
-    let pUp=.52; if(run.trends[sec.id]===1)pUp=.78; if(run.trends[sec.id]===-1)pUp=.26; pUp+=(fx('pUp')||0)+(E.pUp||0);
-    const c={tick:(a.slice(0,2)+b.slice(0,2)).toUpperCase(),name:`${a} ${b} ${pick(N3)}`,sec,vol:ed==='penny'?3:1+Math.floor(R()*3),price:E.price?rr(...E.price):rr(3,400),up:R()<clamp(pUp,.08,.92),serial:Math.floor(rr(1000,99999)),ed};
-    c.verified=i===0&&has('pigeon');
-    const truth=c.verified||R()<rumorAcc();
-    c.hint=truth?(c.up?'bull':'bear'):(c.up?'bear':'bull');
-    c.rumor=pick(c.hint==='bull'?BULL:BEAR);
-    c.spark=spark(c.hint);
-    out.push(c);
-  }
-  for(let k=0;k<(fx('fraud')||0);k++) pick(out).fraud=true;
+  const n=fx('handSize')||4+meta.up.hand+(has('daytrader')?1:0);
+  const out=shuffle(run.deck.slice()).slice(0,n).map(co=>{
+    const E=ED(co); let pUp=.52; const t=run.trends[co.sec]; if(t===1)pUp=.78; if(t===-1)pUp=.26; pUp+=(fx('pUp')||0)+(E.pUp||0);
+    co.seen++; return {co,up:R()<clamp(pUp,.08,.92)};
+  });
+  out.forEach((c,i)=>{
+    if(c.co.enh==='haunted'&&i>0) c.up=out[i-1].up;   // a Haunted company follows the stock before it
+    c.verified=(i===0&&has('pigeon'))||run.ring>0;
+    hintFor(c);
+  });
+  for(let k=0;k<(fx('fraud')||0);k++) if(out.length) pick(out).fraud=true;
   return out;
 }
-function rollEdition(){let x=R();for(const [id,e] of Object.entries(EDITIONS)){const w=id==='gold'&&has('fortune')?.25:e.w;if(x<w)return id;x-=w}return null}
+function hintFor(c){
+  const truth=c.verified||R()<rumorAcc();
+  c.hint=truth?(c.up?'bull':'bear'):(c.up?'bear':'bull');
+  if(fx('lie')&&!c.verified) c.hint=c.hint==='bull'?'bear':'bull';
+  c.rumor=pick(c.hint==='bull'?BULL:BEAR); c.spark=spark(c.hint);
+}
 function makeNews(){
   const items=Object.entries(run.trends).map(([sec,dir])=>{const shown=(run.forced.includes(sec)||R()<newsAcc())?dir:-dir;return {sec,dir:shown,txt:pick(NEWS[sec][shown>0?'up':'down'])}});
   items.push(holdingNews()||{sec:null,txt:pick(FLUFF)});
   run.news=shuffle(items);
-  const target=pick(run.hand), right=R()<rexAcc();
-  target.rex=right?(target.up?'BUY':'SELL'):(target.up?'SELL':'BUY');
-  run.rex={tick:target.tick,call:target.rex,line:pick(target.rex==='BUY'?REX_BUY:REX_SELL).replace('{T}',target.tick)};
+  if(run.arcStep) run.news.unshift({arc:run.arcStep.name,txt:run.arcStep.txt});
+  run.rex=[]; if(!run.hand.length||fx('noRex')) return;
+  const acc=rexAcc();
+  run.rex=shuffle(run.hand.slice()).slice(0,has('rexghost')?2:1).map(t=>{
+    const right=R()<acc; t.rex=right?(t.up?'BUY':'SELL'):(t.up?'SELL':'BUY');
+    return {tick:t.co.tick,call:t.rex,line:pick(t.rex==='BUY'?REX_BUY:REX_SELL).replace('{T}',t.co.tick)};
+  });
 }
 function makePitch(){
   const traits=shuffle(TRAITS.slice()).slice(0,2);
@@ -143,43 +280,104 @@ function decidePitch(invest){
 }
 function choose(buy){
   const c=run.hand[run.idx]; if(!c) return;
-  if(buy){const L=lot(c); if(L.sh<1){toast("You can't afford a single share. Passing.");buy=false} else {run.cash-=L.cost;c.stake=L.cost;c.shares=L.sh}}
-  c.bought=buy; run.idx++;
+  if(c.shredded) buy=false;
+  else if(!buy&&(fx('forceAll')||(fx('forceRex')&&c.rex))){toast(fx('forceAll')?'The Cousin insists. You buy it.':'Rex insists. You buy it.');buy=true}
+  if(buy&&fx('oneEach')&&run.hand.some(x=>x.bought&&x.co.sec===c.co.sec)){toast('The Auditor allows one per sector. Passing.');buy=false}
+  if(buy){const o=lot(c); if(o.sh<1){toast("You can't afford a single share. Passing.");buy=false} else {run.cash-=o.cost;c.stake=o.cost;c.shares=o.sh}}
+  c.bought=buy; if(buy) run.bought++; run.idx++;
+  if(!headless) (buy?sfx.buy:sfx.pass)();
   if(run.idx>=run.hand.length) resolveDay(); else render();
 }
-function resolveDay(){
-  const gainMult=(fx('gain')||1)*(has('pump')?1+.15*run.streak:1), secM=fx('sec')||{};
-  let penny=false, net=0, contra=0, buys=0, lost=0, losers=0, rebate=0; const notes=[];
+
+/* ===== The Closing Bell =====
+   Every buy that rose adds its gain to GAINS. The portfolio hand sets the starting MULT, then buys score left to right
+   (perks with card hooks fire on each), then perks fire left to right. Profit = GAINS x MULT, minus losses (never multiplied). */
+function moveFor(c,prev){
+  const co=c.co,E=ED(co);
+  if(co.enh==='haunted'&&prev!==null) return prev;
+  const vol=VOL[co.vol]*((fx('sec')||{})[co.sec]||1)*(fx('move')||1)*(E.move||1)*(run.aunt==='bernice'?1.5:1)*(co.enh==='glass'?3:1);
+  const m=rr(.25,1)*vol; let r=c.up?m*1.3:-m;
+  if(E.gain&&r>0) r*=E.gain;
+  return r;
+}
+function scoreMoves(){
+  let prev=null, pennyUsed=false;
   for(const c of run.hand){
-    const E=ED(c);
-    const vol=VOL[c.vol]*(secM[c.sec.id]||1)*(fx('move')||1)*(E.move||1)*(c.rex&&has('rexfan')?2:1);
-    const m=rr(.25,1)*vol; let r=c.up?m*1.5:-m;
-    if(E.gain&&r>0) r*=E.gain;
-    if(c.fraud) r=-1;
-    if(r>0){ r*=gainMult; if(has('memelord')&&c.sec.id==='MEME') r*=2; }
-    if(c.bought&&r>0){ const k=impact(c,c.stake); if(k<.95) c.slip=1-k; r*=k; }
-    if(c.bought&&has('larry')) r*=1.3;
-    if(c.bought&&r<0){ if(has('diamond')) r=Math.max(r,-.5); if(has('penny')&&!penny){r=0;penny=true;c.penny=true} }
+    c.raw=moveFor(c,prev); prev=c.raw;
+    let r=c.fraud?-1:c.raw; if(c.co.enh==='notary') r=Math.max(r,-.1);
     c.r=Math.max(r,-1);
-    if(c.bought){ buys++; c.delta=c.stake*c.r+(E.div?c.stake*E.div:0); run.cash+=c.stake+c.delta; net+=c.delta;
-      if(c.delta<0){lost-=c.delta;losers++} if(has('scalper')) rebate+=c.stake*.03; }
-    else if(has('contra')&&c.r<0) contra+=4000;
+    if(!c.bought) continue;
+    let e=c.short?-c.r:c.r;
+    if(e>0&&!has('whale')){const k=impact(c,c.stake);if(k<.95)c.slip=1-k;e*=k}
+    if(e<0&&has('larry')) e*=1.5;
+    if(e<0&&has('diamond')) e=Math.max(e,-.5);
+    if(e<0&&has('penny')&&!pennyUsed){e=0;pennyUsed=true;c.penny=true}
+    c.eff=Math.max(e,-1);
   }
-  if(contra){run.cash+=contra;notes.push(['Contrarian',contra])}
-  if(rebate){rebate=Math.round(rebate);run.cash+=rebate;notes.push(['Scalper rebate',rebate])}
-  if(has('hedge')&&losers>=2){const b=Math.round(lost*.3);run.cash+=b;notes.push(['Hedge Hog',b])}
-  if(has('cat')&&buys>=3){const b=Math.round(run.cash*.06);run.cash+=b;notes.push(['Compound Cat',b])}
-  if(fx('dividend')&&run.holdings.length){const b=Math.round(run.holdings.reduce((s,h)=>s+h.value,0)*fx('dividend'));run.cash+=b;notes.push(['Dividends',b])}
+}
+function closingBell(){
+  const steps=[], bought=run.hand.filter(c=>c.bought), AP=activePerks(), hand=bestHand(bought);
+  let mult=1, gains=0, losses=0, bonus=0;
+  const x={run,hand,bought,retrig:false,trends:run.trends,lotsIn,
+    add(n,who,c){mult+=n;steps.push({k:'add',who:x.via?`${x.via} (${who})`:who,v:n,tick:c&&c.co.tick,m:mult,g:gains})},
+    x(n,who,c){mult*=n;steps.push({k:'x',who:x.via?`${x.via} (${who})`:who,v:n,tick:c&&c.co.tick,m:mult,g:gains})},
+    cash(n,who){n=Math.round(n);if(!n)return;bonus+=n;steps.push({k:'cash',who,v:n,m:mult,g:gains})},
+    note(txt){steps.push({k:'note',who:txt,m:mult,g:gains})}};
+  if(hand){run.hands[hand].played++;mult=fx('noHand')?1:handMult(hand);steps.push({k:'hand',who:H(hand).name,lvl:run.hands[hand].lvl,v:mult,m:mult,g:0,boss:!!fx('noHand')})}
+  const memes=bought.filter(c=>c.co.sec==='MEME').length, echo=countPerk('echo')*memes, geese=countPerk('gooselord');
+  bought.forEach((c,bi)=>{
+    const st=c.stake*(c.split?2:1);
+    if(c.eff>0){
+      const times=1+(c.co.seal==='red'?1:0)+geese+(bi===0?echo:0);
+      for(let t=0;t<times;t++){
+        x.retrig=t>0; const g=st*c.eff; gains+=g;
+        steps.push({k:'card',who:c.co.tick,v:g,r:c.eff,again:t>0,m:mult,g:gains});
+        if(c.co.enh==='hot') x.add(4,'Hot Tip',c);
+        AP.forEach(a=>{const h=PERK_FX[a.id];x.via=a.via;if(h&&h.card)h.card(x,c,a.p);x.via=null});
+      }
+      x.retrig=false; c.gain=st*c.eff;
+    } else {c.loss=st*c.eff;losses+=c.loss;steps.push({k:'loss',who:c.co.tick,v:c.loss,r:c.eff,m:mult,g:gains})}
+    if(ED(c.co).div) x.cash(c.stake*ED(c.co).div*(has('divking')?3:1),`${c.co.tick} dividend`);
+    if(c.co.seal==='gold') x.cash(rentTonight()*.5,`${c.co.tick} Gold Seal`);
+    if(c.co.seal==='blue'&&hand&&run.cons.length<run.consMax){run.cons.push({k:'alm',id:hand});x.note(`${c.co.tick} Blue Seal: ${H(hand).alm}`)}
+    if(has('fortune')&&!c.co.ed&&R()<.25){c.co.ed='gold';x.note(`Fortune Cookie: ${c.co.tick} is Gold Leaf now`)}
+    if(c.co.enh==='glass'&&R()<.25){c.shatter=true;x.note(`${c.co.tick} shattered!`)}
+  });
+  AP.forEach(a=>{const h=PERK_FX[a.id];x.via=a.via;if(h&&h.end)h.end(x,a.p);x.via=null;const e=PERK_EDS[a.ed];
+    if(e&&e.add)x.add(e.add,`${e.name} ${P(a.id).name}`);if(e&&e.x)x.x(e.x,`${e.name} ${P(a.id).name}`)});
+  if(fx('gain')) x.x(fx('gain'),run.event.name);
+  let total=gains*mult, tax=0;
+  if(fx('taxGains')){const thr=2*rentTonight();if(total>thr){tax=(total-thr)*fx('taxGains');total-=tax}}
+  return {steps,hand,mult,gains,losses,bonus,total,tax};
+}
+function resolveDay(){
+  scoreMoves();
+  const cb=closingBell(), bought=run.hand.filter(c=>c.bought);
+  run.closes++;
+  const net=cb.total+cb.losses+cb.bonus;
+  run.cash+=bought.reduce((s,c)=>s+c.stake,0)+net;
+  const notes=[];
+  // Companies remember their moves. Shattered Glass and collapsed companies leave the market.
+  run.hand.forEach(c=>{c.co.price=Math.max(.01,c.co.price*(1+c.r));c.co.last=c.r});
+  run.delisted=[];
+  run.deck=run.deck.filter(co=>{
+    const card=run.hand.find(c=>c.co===co);
+    if(card&&card.shatter){run.delisted.push(`${co.tick} shattered.`);return false}
+    if(co.price<co.list*.15||(card&&card.fraud)){run.delisted.push(`${co.tick} was delisted.`);return false}
+    return true;
+  });
+  while(run.deck.length<12) run.deck.push(newCompany(pick(run.sectors)));
+  if(fx('dividend')&&run.holdings.length){const b=Math.round(holdVal()*fx('dividend'));run.cash+=b;notes.push(['Dividends',b])}
   // Listed shares move (bigger swings in the first days after the IPO)
   run.holdings.forEach(h=>{
     const amp=h.age<2?1.7:1, move=(h.nextUp?rr(.05,.32):-rr(.05,.28))*amp;
     h.last=move; h.value=Math.max(1,h.value*(1+move)); h.age++;
   });
   const qres=[];
-  if(run.day%QUARTER===0) run.ventures=run.ventures.filter(v=>{
+  if(isBoss(run.day)) run.ventures=run.ventures.filter(v=>{
     if(v.since>=run.day){qres.push({kind:'wait',name:v.name});return true}
     const o=quarterly(v);
-    if(o.kind==='bust'){qres.push({kind:'bust',name:v.name,txt:pick(BUSTS),amt:v.paid});return false}
+    if(o.kind==='bust'){run.perks.forEach(p=>{if(p.id==='parachute')p.st.n=(p.st.n||0)+1});qres.push({kind:'bust',name:v.name,txt:pick(BUSTS),amt:v.paid});return false}
     if(o.kind==='acq'){const pay=Math.round(v.ask*o.mult);run.cash+=pay;qres.push({kind:'acq',name:v.name,txt:`Bought by ${pick(ACQUIRERS)}.`,amt:pay,mult:o.mult});return false}
     if(o.kind==='ipo'){const val=Math.round(v.ask*o.mult),q=(v.st.team+v.st.product+v.st.market)/15;
       run.holdings.push({name:v.name,basis:v.ask,value:val,age:0,last:0,drift:(q-.55)*.12-v.st.hype*.006});
@@ -195,47 +393,178 @@ function resolveDay(){
   const inc=Math.round(totalInc(true)); run.cash+=inc;
   const hm=rr(-.025,.035)+(fx('house')||0); run.hidx*=1+hm; run.hlast=hm;
   let termite=null; if(fx('termites')&&!has('manager')){const ids=Object.keys(run.props); if(ids.length){const id=pick(ids);run.props[id].dmg*=fx('termites');termite=L(id).name}}
+  if(fx('repo')){const ids=Object.keys(run.props).sort((a,b)=>propVal(a)-propVal(b));if(ids.length){const v=Math.round(propVal(ids[0])*.7);run.cash+=v;notes.push([`Repo Man took ${L(ids[0]).name}`,v]);delete run.props[ids[0]]}}
   const rent=rentTonight();
+  if(has('savings')){const b=Math.round(Math.min(Math.max(0,run.cash)*.05,rent));if(b>0){run.cash+=b;notes.push(['Savings interest',b])}}
+  if(has('ponzi')&&run.sold){const b=Math.round(Math.max(0,run.cash)*.01*run.sold);run.cash-=b;notes.push(['Ponzi Pete skims',-b])}
   run.cash=Math.round(run.cash-rent);
   // Broke but holding shares? The broker sells them for you.
   let liquidated=0;
-  if(run.cash<=0&&run.holdings.length){liquidated=run.holdings.reduce((s,h)=>s+Math.round(h.value),0);run.cash+=liquidated;run.holdings=[]}
+  if(run.cash<=0&&run.holdings.length){liquidated=run.holdings.reduce((s,h)=>s+Math.round(h.value),0);run.cash+=liquidated;run.holdings=[];resetCat()}
   const fire=[];
   if(run.cash<=0){for(const id of Object.keys(run.props).sort((a,b)=>propVal(a)-propVal(b))){if(run.cash>0)break;const v=Math.round(propVal(id)*.7);run.cash+=v;delete run.props[id];fire.push([L(id).name,v])}}
   run.streak=net>0?run.streak+1:0;
+  run.perks.forEach(p=>{if(p.id==='cat')p.st.days=(p.st.days||0)+1});
+  if(run.ring>0) run.ring--;
+  run.result={net,rent,notes,vres:qres,saved:false,liquidated,inc,termite,fire,...cb,shown:headless};
+  if(run.cash<=0&&run.perks.some(p=>p.id==='pearls')){run.perks.splice(run.perks.findIndex(p=>p.id==='pearls'),1);run.cash=3*rentFor(run.day);run.result.saved=run.cash}
+  // Survive a Boss Landlord: bounty, a free memo, and (on a Final Boss) the next Mood unlocks.
+  if(isBoss(run.day)&&run.cash>0){
+    run.bossesBeat++; const bounty=rentFor(run.day); run.cash+=bounty; run.result.bounty=bounty;
+    if(run.cons.length<run.consMax){const m=pick(MEMOS);run.cons.push({k:'memo',id:m.id});run.result.prize=m.name}
+    if(isFinal(run.day)&&meta.mood<4&&run.mood>=meta.mood){meta.mood=run.mood+1;run.result.moodUp=MOODS[meta.mood].name;saveMeta()}
+  }
+  run.heat=cb.mult>=1000?3:cb.mult>=100?2:cb.mult>=10?1:0;
+  if(!run.best||cb.total>run.best.total) run.best={total:cb.total,mult:cb.mult,hand:cb.hand?H(cb.hand).name:'No hand',day:run.day};
+  if(!meta.bestDay||cb.total>meta.bestDay.total){meta.bestDay={total:cb.total,mult:cb.mult,hand:run.best.hand};saveMeta()}
   run.peak=Math.max(run.peak,netWorth());
-  run.result={net,rent,notes,vres:qres,saved:false,liquidated,inc,termite,fire};
-  if(run.cash<=0&&has('pearls')){run.perks=run.perks.filter(p=>p!=='pearls');run.cash=60000;run.result.saved=true}
   run.dead=run.cash<=0;
-  if(run.dead){ run.earned=Math.max(1,(run.day-1)+Math.max(0,Math.floor(3*Math.log2(run.peak/100000)))+(run.tycoon?10:0)); meta.pearls+=run.earned;
-    meta.best=Math.max(meta.best,run.day); meta.bestCash=Math.max(meta.bestCash,run.peak); saveMeta(); }
-  scene='resolve'; render();
+  if(run.dead) endRun();
+  run.modal=null; scene='resolve';
+  if(!run.dead&&!run.ascended&&netWorth()>=1e100){run.ascended=true;scene='ascend'}
+  render();
 }
-function openShop(){
+function endRun(){
+  run.earned=Math.max(1,Math.round(((run.day-1)+Math.max(0,Math.floor(3*Math.log2(run.peak/100000)))+run.bossesBeat+(run.tycoon?10:0))*(1+.25*run.mood)));
+  meta.pearls+=run.earned; meta.best=Math.max(meta.best,run.day); meta.bestCash=Math.max(meta.bestCash,run.peak);
+  if(run.daily){if(!meta.daily||meta.daily.date!==run.daily)meta.daily={date:run.daily,best:0};meta.daily.best=Math.max(meta.daily.best,run.day)}
+  saveMeta();
+}
+
+/* ===== Shop: the Newsstand every day, the Broker (perks) at quarter end ===== */
+const priceOf=p=>Math.round(p.cost*1000*infl()*(1-.1*meta.up.discount)*(run.mood>=3?1.5:1)/500)*500;
+const consPrice=k=>Math.round(({alm:4,memo:5,env:10})[k]*1000*infl()/500)*500;
+const sellVal=p=>Math.round(priceOf(P(p.id))/2/500)*500;
+function rollPerk(){
+  const owned=id=>run.perks.some(q=>q.id===id)||shop.some(o=>o.id===id);
+  const pool=PERKS.filter(p=>p.r!=='l'&&!owned(p.id)); if(!pool.length) return null;
+  const r=weighted(['c','u','r'].map(k=>({k,w:RARITY[k].w}))).k, sub=pool.filter(p=>p.r===r), p=pick(sub.length?sub:pool);
+  let ed=null,x=R(); for(const [k,e] of Object.entries(PERK_EDS)){if(x<e.w){ed=k;break}x-=e.w}
+  return {t:'perk',id:p.id,ed,price:Math.round(priceOf(p)*(ed?1.5:1)/500)*500};
+}
+function rollCons(){
+  const x=R(), k=x<.5?'alm':x<.9?'memo':'env';
+  const fav=Object.entries(run.hands).sort((a,b)=>b[1].played-a[1].played)[0];
+  const id=k==='alm'?(R()<.5&&fav[1].played?fav[0]:pick(HANDS).id):k==='memo'?pick(MEMOS).id:pick(ENVELOPES).id;
+  return {t:'cons',k,id,price:consPrice(k)};
+}
+function openShop(reroll){
   settleFollowOns();
-  const pool=PERKS.filter(p=>!run.perks.includes(p.id));
-  shop=[];while(shop.length<3&&pool.length){shop.push(pool.splice(Math.floor(R()*pool.length),1)[0].id)}
-  scene='shop'; render();
+  if(!reroll) run.reroll=5000;
+  const broker=isBoss(run.day); shop=[];
+  if(broker){const n=3+(run.aunt==='twins'?2:0)-(run.mood>=3?1:0);for(let i=0;i<n;i++){const p=rollPerk();if(p)shop.push(p)}}
+  for(let i=0;i<(broker?2:3);i++) shop.push(rollCons());
+  run.modal=null; scene='shop'; render();
 }
-const priceOf=p=>Math.round(p.cost*1000*(1-.1*meta.up.discount)/500)*500;
+const rerollCost=()=>Math.round(run.reroll*infl()/500)*500;
+function buyOffer(i){
+  const o=shop[i]; if(!o||o.sold||run.cash<=o.price) return false;
+  if(o.t==='perk'&&!slotFree()&&o.ed!=='fake'){toast('No free perk slot. Sell one first.');return false}
+  if(o.t==='cons'&&run.cons.length>=run.consMax){toast('Your pockets are full.');return false}
+  run.cash-=o.price; o.sold=true;
+  if(o.t==='perk') run.perks.push(newPerk(o.id,o.ed)); else run.cons.push({k:o.k,id:o.id});
+  if(!headless) sfx.cash(); render(); return true;
+}
+function sellPerk(i){const p=run.perks[i];if(!p)return;const v=sellVal(p);run.cash+=v;run.perks.splice(i,1);run.sold++;run.off=[];run.modal=null;toast(`Sold ${P(p.id).name} for ${fmt(v)}.`);render()}
+function movePerk(i,d){const j=i+d;if(j<0||j>=run.perks.length)return;[run.perks[i],run.perks[j]]=[run.perks[j],run.perks[i]];run.off=[];run.modal={kind:'perk',i:j};render()}
+
+/* ===== Consumables ===== */
+const MEMO=id=>MEMOS.find(m=>m.id===id), ENV=id=>ENVELOPES.find(e=>e.id===id);
+const consName=k=>k.k==='alm'?H(k.id).alm:k.k==='memo'?MEMO(k.id).name:ENV(k.id).name;
+const consDesc=k=>k.k==='alm'?`${H(k.id).name} goes up a level (+${H(k.id).per} MULT). ${H(k.id).txt}`:k.k==='memo'?MEMO(k.id).txt:ENV(k.id).txt;
+const consCode=k=>k.k==='alm'?'AL':consName(k).replace(/[^A-Za-z ]/g,'').split(' ').map(w=>w[0]).join('').slice(0,2).padEnd(2,consName(k)[1]).toUpperCase();
+const KIND={alm:'Almanac',memo:'Memo',env:'Brown Envelope'};
+function useCons(i){
+  const k=run.cons[i]; if(!k) return false;
+  const ok=k.k==='alm'?useAlm(k.id):k.k==='memo'?useMemo(k.id):useEnv(k.id);
+  if(!ok) return false;
+  run.cons.splice(i,1); run.modal=null; if(!headless) sfx.use();
+  if(ok==='pass') choose(false); else render();
+  return true;
+}
+function useAlm(id){run.hands[id].lvl++;toast(`${H(id).name} is now level ${run.hands[id].lvl}: ${handMult(id)} MULT.`);return true}
+function useMemo(id){
+  const M=MEMO(id), c=scene==='play'?run.hand[run.idx]:null;
+  if(M.t==='card'&&!c){toast('Use this on a certificate while you trade.');return false}
+  const co=c.co;
+  if(id==='tip'){c.verified=true;hintFor(c)}
+  else if(id==='short') c.short=true;
+  else if(id==='split') c.split=true;
+  else if(id==='gild') co.ed='gold';
+  else if(['notary','glass','hot'].includes(id)) co.enh=id;
+  else if(id==='haunt'){co.enh='haunted';if(run.idx>0){c.up=run.hand[run.idx-1].up;hintFor(c)}}
+  else if(id.endsWith('seal')) co.seal=id.replace('seal','');
+  else if(id==='shred'){if(run.deck.length<=8){toast('The market needs at least 8 companies.');return false}run.deck=run.deck.filter(x=>x!==co);c.shredded=true;toast(`${co.tick} shredded. Gone for good.`);return 'pass'}
+  else if(id==='clone'){run.deck.push({...co,id:++run.coId,seen:0,name:co.name.endsWith(' II')?co.name:co.name+' II',serial:Math.floor(rr(1000,99999))});toast(`${co.tick} copied into the market.`)}
+  else if(id==='merge'){const nx=run.hand[run.idx+1];if(!nx){toast('A Merger needs another certificate after this one.');return false}
+    if(co.ed)nx.co.ed=co.ed;if(co.enh)nx.co.enh=co.enh;if(co.seal)nx.co.seal=co.seal;run.deck=run.deck.filter(x=>x!==co);c.shredded=true;toast(`${co.tick} merged into ${nx.co.tick}.`);return 'pass'}
+  else if(id==='pump'){run.pumped=co.sec;toast(`${co.sec} will trend up tomorrow.`)}
+  return true;
+}
+function useEnv(id){
+  if(id==='legend'){if(!slotFree()){toast('No free perk slot.');return false}const pool=PERKS.filter(p=>p.r==='l'&&!run.perks.some(q=>q.id===p.id));if(!pool.length)return false;
+    const p=pick(pool);run.perks.push(newPerk(p.id));run.cash=Math.round(run.cash/2);toast(`${p.name} joins you. Half your cash is gone.`)}
+  else if(id==='takeover'){if(run.perks.length<2){toast('You need at least 2 perks.');return false}const gone=run.perks.splice(Math.floor(R()*run.perks.length),1)[0];const h=pick(run.perks);h.ed='holo';toast(`${P(gone.id).name} destroyed. ${P(h.id).name} is Holographic.`)}
+  else if(id==='swan'){HANDS.forEach(h=>run.hands[h.id].lvl++);toast('Every hand went up a level.')}
+  else if(id==='shell'){for(let i=0;i<3;i++)run.deck.push(newCompany(pick(run.sectors),{enh:'glass'}));toast('3 Glass companies joined the market.')}
+  else if(id==='counterfeit'){const c=run.perks.filter(p=>p.ed!=='fake');if(!c.length){toast('You need a perk.');return false}const p=pick(c);p.ed='fake';run.cash=Math.round(run.cash*.75);toast(`${P(p.id).name} is Counterfeit now. It takes no slot.`)}
+  else if(id==='ring'){run.ring=3;if(scene==='play')run.hand.slice(run.idx).forEach(c=>{c.verified=true;hintFor(c)});toast('Every rumor is true for 3 days.')}
+  else if(id==='crypt'){if(!run.perks.length){toast('You need a perk.');return false}const p=pick(run.perks);run.perks=[p,newPerk(p.id)];run.off=[];toast(`Two copies of ${P(p.id).name}. Everything else is gone.`)}
+  else if(id==='offshore'){run.cash+=3*rentFor(run.day);run.rentX=1.5;run.rentXUntil=nextBossDay(run.day);toast('Cash wired in. Rent is 1.5x until the quarter ends.')}
+  return true;
+}
 
 /* ===== Render ===== */
 const app=typeof document!=='undefined'?document.getElementById('app'):null;
 let headless=!app;   // sims turn rendering off for speed
 const secChip=id=>`<span class="sec" style="background:${S(id).c}">${id}</span>`;
 function hud(){
-  const rent=rentTonight();
+  const rent=rentTonight(), boss=isBoss(run.day), fake=run.perks.filter(p=>p.ed==='fake').length;
+  const cells=run.perks.map((p,i)=>{const d=P(p.id);
+    return `<div class="slot on ${p.ed?'ped-'+p.ed:''} ${run.off&&run.off.includes(i)?'off':''}" style="background:${d.c}" data-act="perk" data-i="${i}" role="button" tabindex="0" aria-label="${d.name}">${d.code}</div>`});
+  for(let i=perkSlots();i<5;i++) cells.push('<div class="slot"></div>');
+  const cons=[];for(let i=0;i<run.consMax;i++){const k=run.cons[i];
+    cons.push(k?`<div class="slot cons k-${k.k}" data-act="cons" data-i="${i}" role="button" tabindex="0" aria-label="${consName(k)}">${consCode(k)}</div>`:'<div class="slot cons"></div>')}
+  const B=run.boss, bd=nextBossDay(run.day);
   return `<div class="hud">
     <div class="cash"><div class="lbl">Cash</div><div class="val tab">${fmt(run.cash)}</div></div>
     <div class="day"><div class="lbl">Day · Q${Math.ceil(run.day/QUARTER)}</div><div class="val tab">${run.day}</div></div>
-    <div class="rent"><div class="lbl">Rent</div><div class="val tab">${fmt(rent)}</div></div>
+    <div class="rent ${boss?'boss':''}"><div class="lbl">${boss?'Boss rent':'Rent'}</div><div class="val tab">${fmtK(rent)}</div></div>
   </div>
-  <div class="perks">${[0,1,2,3,4].map(i=>{const id=run.perks[i];if(!id)return `<div class="slot"></div>`;const p=P(id);
-    return `<div class="slot on" style="background:${p.c}" data-act="perk" data-id="${id}" role="button" tabindex="0" aria-label="${p.name}">${p.code}</div>`}).join('')}</div>
-  ${run.ventures.length||run.holdings.length||Object.keys(run.props).length?`<div class="ventures"><span class="lbl">Portfolio</span>${Object.keys(run.props).length?`<span class="vchip" style="border-color:var(--green);color:var(--green)">${Object.keys(run.props).length} lots +${fmtK(totalInc())}/day</span>`:''}${run.ventures.map(v=>`<span class="vchip">${v.name} ${fmtK(v.ask*v.m)}</span>`).join('')}${run.holdings.map(h=>`<span class="vchip" style="background:var(--yellow);color:var(--ink)">${h.name} ${fmtK(h.value)}</span>`).join('')}</div>`:''}`;
+  <div class="perks" style="grid-template-columns:repeat(${5+fake},1fr) 2px repeat(${run.consMax},1fr)">${cells.join('')}<span class="div"></span>${cons.join('')}</div>
+  <button class="bossbar ${boss?'now':''} ${isFinal(bd)?'final':''}" data-act="book"><span>${boss?'BOSS TODAY':`BOSS DAY ${bd}`}</span><b>${B.name}</b><i>${B.txt}</i><span class="led">LEDGER</span></button>
+  ${run.ventures.length||run.holdings.length||Object.keys(run.props).length?`<div class="ventures"><span class="lbl">Portfolio</span>${Object.keys(run.props).length?`<span class="vchip" style="border-color:var(--green);color:var(--green)">${Object.keys(run.props).length} lot${Object.keys(run.props).length>1?"s":""} +${fmtK(totalInc())}/day</span>`:''}${run.ventures.map(v=>`<span class="vchip">${v.name} ${fmtK(v.ask*v.m)}</span>`).join('')}${run.holdings.map(h=>`<span class="vchip" style="background:var(--yellow);color:var(--ink)">${h.name} ${fmtK(h.value)}</span>`).join('')}</div>`:''}`;
 }
-function tv(host,chyronTag,chyronTxt,crawl,net){
-  return `<div class="tv"><div class="screen">
+function perkState(p){
+  if(p.id==='cat') return `Now x${fmtM(1+.2*(p.st.days||0))} MULT.`;
+  if(p.id==='parachute') return `Now x${fmtM(1+.5*(p.st.n||0))} MULT.`;
+  if(p.id==='gnome') return `Now +${1+2*run.bossesBeat} MULT.`;
+  if(p.id==='swiper') return `Now +${fmtM(run.bought*.25)} MULT.`;
+  if(p.id==='ponzi') return `Now +${2*run.sold} MULT.`;
+  if(p.id==='loyalty') return `${4-run.closes%4} Closing Bells to go.`;
+  if(p.id==='mildred') return `Now x${Math.max(1,Math.floor(run.day/4))} MULT.`;
+  if(p.id==='intern'){const i=run.perks.indexOf(p),nb=run.perks[i+1];return nb&&nb.id!=='intern'?`Copying ${P(nb.id).name}.`:'Nothing to copy. Put a perk to its right.'}
+  return '';
+}
+function modalHTML(){
+  const m=run&&run.modal; if(!m) return '';
+  if(m.kind==='perk'){const p=run.perks[m.i]; if(!p) return ''; const d=P(p.id),e=PERK_EDS[p.ed],st=perkState(p);
+    return `<div class="modal" data-act="closemodal"><div class="sheet box col pop">
+      <div class="row"><div class="ico" style="background:${d.c}">${d.code}</div><div><div class="n d">${d.name}</div><div class="lbl" style="color:${RARITY[d.r].c}">${RARITY[d.r].name}${e?` · ${e.name}: ${e.txt}`:''}</div></div></div>
+      <div>${d.desc}</div>${st?`<div class="yel">${st}</div>`:''}${run.off&&run.off.includes(m.i)?'<div class="down">Disabled by the Boss Landlord today.</div>':''}
+      <div class="muted" style="font-size:18px">Perks trigger left to right at the Closing Bell. Put +MULT perks before xMULT perks.</div>
+      <div class="actions three"><button class="ghost" data-act="pleft" ${m.i===0?'disabled':''}>◀ Move</button><button class="ghost" data-act="pright" ${m.i>=run.perks.length-1?'disabled':''}>Move ▶</button><button class="red" data-act="psell">Sell ${fmtK(sellVal(p))}</button></div>
+      <button data-act="closemodal">Close</button></div></div>`}
+  const k=run.cons[m.i]; if(!k) return '';
+  const needCard=k.k==='memo'&&MEMO(k.id).t==='card', canUse=!needCard||scene==='play';
+  return `<div class="modal" data-act="closemodal"><div class="sheet box col pop">
+    <div class="row"><div class="ico k-${k.k}">${consCode(k)}</div><div><div class="n d">${consName(k)}</div><div class="lbl">${KIND[k.k]}</div></div></div>
+    <div>${consDesc(k)}</div>${needCard&&scene==='play'?`<div class="yel">Applies to ${run.hand[run.idx].co.tick}, the certificate in front of you.</div>`:''}${needCard&&!canUse?'<div class="muted">Use it on a certificate while you trade.</div>':''}
+    <div class="actions"><button class="red" data-act="csell">Sell ${fmtK(consPrice(k.k)/2)}</button><button class="green" data-act="cuse" ${canUse?'':'disabled'}>Use</button></div>
+    <button data-act="closemodal">Close</button></div></div>`;
+}
+function tv(host,chyronTag,chyronTxt,crawl,net,heat=0){
+  return `<div class="tv heat${heat}"><div class="screen">
     <svg class="chart" viewBox="0 0 200 100" preserveAspectRatio="none"><polyline fill="none" stroke="#9fc0ff" stroke-width="3" points="0,70 20,62 35,68 55,40 70,48 90,30 110,44 130,22 150,34 170,14 200,20"/></svg>
     <div class="bug">LIVE</div><div class="net">${net}</div>
     <img class="host px8" src="${host}" alt="">
@@ -245,23 +574,27 @@ function tv(host,chyronTag,chyronTxt,crawl,net){
   </div><div class="knobs"><span>GAC-TV CH 4</span><span><i></i><i></i></span></div></div>`;
 }
 function cardHTML(c,back){
-  const risk='▮'.repeat(c.vol)+'▯'.repeat(3-c.vol);
+  const co=c.co, E=ED(co), risk='▮'.repeat(co.vol)+'▯'.repeat(3-co.vol);
   const pts=c.spark.map((v,i)=>`${(i/13*200).toFixed(1)},${(100-v).toFixed(1)}`).join(' ');
   const lineCol=c.spark[13]>=c.spark[0]?'#1d8a52':'#c23a36';
-  const edName=ED(c).name;
-  const ed=c.ed?`<span class="chip" style="background:var(--ink);color:var(--yellow)">${edName}</span>`:'';
-  const rex=c.rex?`<span class="chip" style="background:var(--red);color:var(--cream)">REX: ${c.rex}</span>`:'';
-  const rum=ED(c).noRumor
-    ?`<span class="tag" style="background:var(--ink)">NO FILINGS</span><br>${ED(c).txt}`
-    :`<span class="tag" style="background:${c.hint==='bull'?'#1d8a52':'#c23a36'}">${c.verified?'VERIFIED ':''}RUMOR · ${c.hint==='bull'?'BULLISH':'BEARISH'}</span><br>${c.rumor}${c.ed?` <span class="edtxt">${ED(c).txt}</span>`:''}`;
-  return `<div class="card ${c.ed?'ed-'+c.ed:''} ${back?'back':''}"><div class="frame">
-      <div class="certhead"><span>CERTIFICATE OF SHARES</span><span>No. ${String(c.serial).padStart(5,'0')}</span></div>
-      <div class="seal" style="background:${c.sec.c}">${c.sec.id.slice(0,4)}</div>
-      <div><div class="tick">${c.tick}</div><div class="cname">${c.name}</div></div>
-      <div class="chips"><span class="chip" style="background:${c.sec.c}">${c.sec.id}</span><span class="chip">RISK ${risk}</span>${ed}${rex}</div>
+  const chip=(txt,bg,fg='var(--ink)')=>`<span class="chip" style="background:${bg};color:${fg}">${txt}</span>`;
+  const chips=[chip(co.sec,S(co.sec).c),chip('RISK '+risk,'transparent'),co.ed?chip(E.name,'var(--ink)','var(--yellow)'):'',co.enh?chip(ENH[co.enh].name,'#5b3c88','var(--cream)'):'',
+    co.seal?chip(SEALS[co.seal].name,SEALS[co.seal].c,co.seal==='gold'?'var(--ink)':'var(--cream)'):'',c.rex?chip('REX: '+c.rex,'var(--red)','var(--cream)'):'',
+    c.short?chip('SHORT','var(--ink)','var(--red)'):'',c.split?chip('SPLIT x2','var(--ink)','var(--green)'):''].join('');
+  const noRum=E.noRumor||fx('noRumor');
+  const rum=noRum
+    ?`<span class="tag" style="background:var(--ink)">NO FILINGS</span><br>${E.noRumor?E.txt:'The Fortune Teller took every filing.'}`
+    :`<span class="tag" style="background:${c.hint==='bull'?'#1d8a52':'#c23a36'}">${c.verified?'VERIFIED ':''}RUMOR · ${c.hint==='bull'?'BULLISH':'BEARISH'}</span><br>${c.rumor}${co.ed?` <span class="edtxt">${E.txt}</span>`:''}${co.enh?` <span class="edtxt">${ENH[co.enh].txt}</span>`:''}`;
+  const life=co.price/co.list-1;
+  return `<div class="card ${co.ed?'ed-'+co.ed:''} ${co.enh?'enh-'+co.enh:''} ${back?'back':''}"><div class="frame">
+      <div class="certhead"><span>CERTIFICATE OF SHARES</span><span>No. ${String(co.serial).padStart(5,'0')}</span></div>
+      <div class="seal" style="background:${S(co.sec).c}">${co.sec.slice(0,4)}</div>
+      ${co.seal?`<div class="wax" style="background:${SEALS[co.seal].c}"></div>`:''}
+      <div><div class="tick">${co.tick}</div><div class="cname">${co.name}</div></div>
+      <div class="chips">${chips}</div>
       <svg class="spark" viewBox="0 0 200 100" preserveAspectRatio="none"><polyline fill="none" stroke="${lineCol}" stroke-width="4" points="${pts}"/></svg>
       <div class="rumor">${rum}</div>
-      <div class="cfoot tab"><span>${fmtP(c.price)} per share</span><span>${run.hand.length-run.idx} left</span></div>
+      <div class="cfoot tab"><span>${fmtP(co.price)}/sh</span><span>${co.seen>1?`seen ${co.seen}x · <span class="${life>=0?'gup':'gdn'}">${pct(life)}</span>`:'new listing'}</span><span>${run.hand.length-run.idx} left</span></div>
       ${back?'':'<div class="stamp buy">BOUGHT</div><div class="stamp pass">PASSED</div>'}
   </div></div>`;
 }
@@ -274,13 +607,13 @@ function holdingsBox(){
 }
 function portfolioBox(){
   const S0=run.snap, P0=run.prevSnap, d=k=>P0?S0[k]-P0[k]:0;
-  const delta=(v,cls=true)=>!P0?'':`<span class="${v>=0?'up':'down'}">${v>=0?'▲ +':'▼ -'}${fmtK(Math.abs(v))}</span>`;
-  const allTime=(S0.nw-run.start)/run.start, n=Object.keys(run.props).length;
+  const delta=v=>!P0?'':`<span class="${v>=0?'up':'down'}">${v>=0?'▲ +':'▼ -'}${fmtK(Math.abs(v))}</span>`;
+  const allTime=(S0.nw-run.start)/Math.max(1,run.start), n=Object.keys(run.props).length;
   const row=(name,val,dl,extra='')=>`<span>${name}</span><span class="tab">${fmtK(val)}</span><span class="tab">${dl}</span>${extra?`<span class="sub">${extra}</span>`:''}`;
   return `<div class="box panel col pf" style="gap:6px">
     <div class="row between"><span class="lbl">Your portfolio · this morning</span><span class="lbl">vs yesterday</span></div>
     <div class="row between"><span class="nw tab">${fmt(S0.nw)}</span>${P0?`<span class="tab ${d('nw')>=0?'up':'down'}" style="font-size:22px">${d('nw')>=0?'+':'-'}${fmtK(Math.abs(d('nw')))} (${pct(d('nw')/Math.max(1,P0.nw))})</span>`:'<span class="muted">Day 1</span>'}</div>
-    <div class="muted" style="font-size:19px">Net worth. ${allTime>=0?'Up':'Down'} ${Math.abs(Math.round(allTime*100))}% from Mildred's ${fmtK(run.start)}.${run.result&&P0?` Yesterday's trading: <span class="${run.result.net>=0?'up':'down'}">${run.result.net>=0?'+':'-'}${fmtK(Math.abs(run.result.net))}</span>.`:''}</div>
+    <div class="muted" style="font-size:19px">Net worth. ${allTime>=0?'Up':'Down'} ${fmtM(Math.abs(Math.round(allTime*100)))}% from Mildred's ${fmtK(run.start)}.${run.result&&P0?` Yesterday's trading: <span class="${run.result.net>=0?'up':'down'}">${run.result.net>=0?'+':'-'}${fmtK(Math.abs(run.result.net))}</span>.`:''}</div>
     <div class="pfgrid">
       ${row('Cash',S0.cash,delta(d('cash')))}
       ${n?row(`Property · ${n} lot${n>1?'s':''}`,S0.prop,delta(d('prop')),`+${fmtK(totalInc())} every night`):''}
@@ -293,13 +626,13 @@ function portfolioBox(){
   </div>`;
 }
 function propPanel(id){
-  const l=L(id),o=run.props[id];
-  if(o){const rc=renoCost(id),maxed=o.lvl>=3&&o.dmg>=1;
+  const l=L(id),o=run.props[id],dd=D(l.dist);
+  if(o){const rc=renoCost(id),maxed=o.lvl>=3&&o.dmg>=1,noSell=(dd.gim||{}).noSell;
     return `<div class="box prop pop"><div class="row between"><span class="d" style="font-weight:700">${l.name}</span><span class="pips">${'■'.repeat(o.lvl)}${'□'.repeat(3-o.lvl)}</span></div>
     <div class="kv tab"><span class="muted">Value</span><span>${fmt(propVal(id))}</span><span class="muted">Income</span><span class="up">+${fmt(propInc(id))} / night</span>${o.dmg<1?`<span class="muted">Termite damage</span><span class="down">-${Math.round((1-o.dmg)*100)}%</span>`:''}</div>
-    <div class="actions"><button class="ghost" data-act="reno" ${maxed||run.cash<=rc?'disabled':''}>${maxed?'Fully renovated':o.lvl>=3?`Repair ${fmtK(rc)}`:`Renovate ${fmtK(rc)}`}</button><button class="red" data-act="sellprop">Sell ${fmtK(sellPrice(id))}</button></div></div>`;}
-  const pr=lotPrice(l), est=pr*l.yld*(has('landlord')?1.4:1);
-  return `<div class="box prop pop"><div class="row between"><span class="d" style="font-weight:700">${l.name}</span><span class="lbl" style="color:${DISTRICTS[l.di].c}">${DISTRICTS[l.di].name}</span></div>
+    <div class="actions"><button class="ghost" data-act="reno" ${maxed||run.cash<=rc?'disabled':''}>${maxed?'Fully renovated':o.lvl>=3?`Repair ${fmtK(rc)}`:`Renovate ${fmtK(rc)}`}</button><button class="red" data-act="sellprop" ${noSell?'disabled':''}>${noSell?'Geese say no':`Sell ${fmtK(sellPrice(id))}`}</button></div></div>`;}
+  const pr=lotPrice(l), est=pr*l.yld*(has('landlord')?1.4:1)*((dd.gim||{}).inc||1);
+  return `<div class="box prop pop"><div class="row between"><span class="d" style="font-weight:700">${l.name}</span><span class="lbl" style="color:${dd.c}">${dd.name}</span></div>
   <div class="kv tab"><span class="muted">Price</span><span>${fmt(pr)}</span><span class="muted">Income</span><span class="up">+${fmt(est)} / night</span><span class="muted">Pays for itself in</span><span>${Math.ceil(pr/est)} days</span></div>
   <button data-act="buyprop" ${run.cash<=pr?'disabled':''}>${run.cash<=pr?`Need ${fmtK(pr-run.cash)} more`:`Buy for ${fmtK(pr)}`}</button></div>`;
 }
@@ -311,38 +644,101 @@ function followHTML(q){
 }
 function notesStrip(){
   return `<div class="box notes">${run.news.filter(n=>n.sec).map(n=>`${secChip(n.sec)}<span class="${n.dir>0?'up':'down'}">${n.dir>0?'▲':'▼'}</span>`).join(' ')}
-    <span class="muted">·</span><span class="sec" style="background:var(--red);color:var(--cream)">REX</span><span>${run.rex.call} ${run.rex.tick}</span>
+    ${run.rex.map(x=>`<span class="muted">·</span><span class="sec" style="background:var(--red);color:var(--cream)">REX</span><span>${x.call} ${x.tick}</span>`).join('')}
     ${run.event.id!=='quiet'?`<span class="muted">·</span><span class="yel">${run.event.name}</span>`:''}</div>`;
+}
+const handLabel=id=>id?`${H(id).name} <span class="mlt">${fmtM(handMult(id))}</span>`:'<span class="muted">no hand yet</span>';
+function stepHTML(s){
+  const v=s.k==='card'?`<span class="up">${pct(s.r)}</span><span class="up">+${fmtK(s.v)}</span>`
+    :s.k==='loss'?`<span class="down">${pct(s.r)}</span><span class="down">${fmtK(s.v)}</span>`
+    :s.k==='add'?`<span></span><span class="mlt">+${fmtM(s.v)} MULT</span>`
+    :s.k==='x'?`<span></span><span class="xm">x${fmtM(s.v)} MULT</span>`
+    :s.k==='cash'?`<span></span><span class="up">+${fmtK(s.v)}</span>`
+    :s.k==='hand'?`<span class="muted">lvl ${s.lvl}</span><span class="mlt">${fmtM(s.v)} MULT</span>`:'<span></span><span></span>';
+  const who=s.k==='hand'?`<b>${s.who}</b>${s.boss?' <span class="down">(Hedge Fund Bro)</span>':''}`:s.k==='card'||s.k==='loss'?`<span class="t">${s.who}</span>${s.again?' <span class="yel">AGAIN</span>':''}`:`${s.tick?`<span class="t">${s.tick}</span> `:''}${s.who}`;
+  return `<div class="st show k-${s.k}" data-k="${s.k}" data-g="${s.g}" data-m="${s.m}"><span class="w">${who}</span>${v}</div>`;
+}
+function rexReaction(r){const k=r.net>3*r.rent?'great':r.net>0?'good':r.net>-r.rent?'bad':'awful';return pick(REX_REACT[k])}
+let tallyT=null;
+function shake(){if(!app)return;app.classList.remove('shake');void app.offsetWidth;app.classList.add('shake')}
+function animateTally(){
+  const box=document.getElementById('tally'); if(!box) return;
+  const rows=[...box.querySelectorAll('.st')], after=document.getElementById('after'), tG=document.getElementById('tG'), tM=document.getElementById('tM'), r=run.result;
+  const reduce=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let i=0;
+  const finish=()=>{clearTimeout(tallyT);tallyT=null;rows.forEach(x=>x.classList.add('show'));if(after)after.hidden=false;
+    tG.textContent=fmtK(r.gains);tM.textContent=fmtM(r.mult);r.shown=true;box.onclick=null;
+    const board=document.getElementById('board');if(board)board.className=`board box heat${run.heat}`;
+    sfx.bell();if(run.heat>=2)shake()};
+  if(reduce||!rows.length){finish();return}
+  rows.forEach(x=>x.classList.remove('show')); if(after) after.hidden=true;
+  box.onclick=finish;
+  const step=()=>{
+    if(i>=rows.length){finish();return}
+    const row=rows[i]; row.classList.add('show'); if(row.scrollIntoView) row.scrollIntoView({block:'nearest'});
+    tG.textContent=fmtK(+row.dataset.g); tM.textContent=fmtM(+row.dataset.m);
+    const k=row.dataset.k;
+    if(k==='x'){sfx.x();shake();tM.classList.remove('pulse');void tM.offsetWidth;tM.classList.add('pulse')}
+    else if(k==='add'||k==='hand') sfx.mult(i); else if(k==='loss') sfx.loss(); else if(k==='cash') sfx.cash(); else sfx.step(i);
+    i++; tallyT=setTimeout(step,Math.max(70,340-i*16));
+  };
+  tallyT=setTimeout(step,250);
 }
 function render(){
   if(headless) return;
+  if(tallyT){clearTimeout(tallyT);tallyT=null;if(run&&run.result)run.result.shown=true}
+  renderScene();
+  if(run&&run.modal&&['news','pitch','play','resolve','quarter','shop','town','book'].includes(scene)) app.insertAdjacentHTML('beforeend',modalHTML());
+  if(scene==='resolve'&&!run.result.shown) animateTally();
+}
+function renderScene(){
   if(scene==='title'){
+    const today=dailyId();
     app.innerHTML=`<div class="grow"></div>
     ${tv(sprite('aunt'),'SPECIAL REPORT','Local great-aunt hands out money, family nervous','DOW ▲ 12 · SOUP ▲ 3 · SOCKS ▼ 8 · GOAT ▲ 40 · GRAVY ▲ 1 · LLAMA ▼ 2','INHERITANCE HOUR')}
     <div class="col pop"><div class="logo">GREAT AUNT CAPITAL</div>
-      <div style="font-size:22px">Mildred gave you $100,000. Watch the morning news, swipe on stocks, back weird startups, buy the town, pay rent. Don't go broke.</div></div>
+      <div style="font-size:22px">Mildred gave you $100,000. Watch the news, swipe on stocks, stack MULT, beat the Boss Landlords, buy the town. Don't go broke.</div></div>
     <div class="box panel col" style="gap:4px">
       <div class="row between"><span class="muted">Pearls</span><span class="yel tab">${meta.pearls}</span></div>
       <div class="row between"><span class="muted">Longest run</span><span class="tab">${meta.best?meta.best+' days':'none yet'}</span></div>
       <div class="row between"><span class="muted">Peak net worth</span><span class="tab">${meta.bestCash?fmt(meta.bestCash):'none yet'}</span></div>
+      ${meta.bestDay?`<div class="row between"><span class="muted">Best Closing Bell</span><span class="tab">${fmtK(meta.bestDay.total)} · ${meta.bestDay.hand}</span></div>`:''}
+      ${meta.daily&&meta.daily.date===today?`<div class="row between"><span class="muted">Today's Daily Market</span><span class="tab">${meta.daily.best} days</span></div>`:''}
     </div>
-    <div class="col"><button data-act="start">Take the money</button>
-      <div class="actions"><button class="ghost" data-act="will">The will</button><button class="ghost" data-act="help">How to play</button></div></div>
+    <div class="col"><button data-act="setup">Take the money</button>
+      <div class="actions"><button class="ghost" data-act="daily">Daily market</button><button class="ghost" data-act="will">The will</button></div>
+      <div class="actions"><button class="ghost" data-act="help">How to play</button><button class="ghost" data-act="mute">Sound ${meta.mute?'off':'on'}</button></div></div>
     <div class="grow"></div>`; return;
+  }
+  if(scene==='setup'){
+    const A=AUNTS[setup.aunt], ok=auntOpen(A), M=MOODS[setup.mood];
+    app.innerHTML=`<div class="h2" style="padding-top:8px">NEW RUN</div>
+    <div class="col scroll grow">
+      <div class="box panel col pick"><div class="lbl">Who's paying</div>
+        <div class="row between"><button class="ghost sm" data-act="aunt" data-d="-1">◀</button><div class="d pickname">${A.name}</div><button class="ghost sm" data-act="aunt" data-d="1">▶</button></div>
+        <div>${ok?A.txt:`<span class="muted">Locked. ${A.hint}</span>`}</div></div>
+      <div class="box panel col pick"><div class="lbl">Mildred's mood</div>
+        <div class="row between"><button class="ghost sm" data-act="mood" data-d="-1">◀</button><div class="d pickname">${M.name}</div><button class="ghost sm" data-act="mood" data-d="1">▶</button></div>
+        <div>${M.txt}${setup.mood?` <span class="yel">Pearls +${setup.mood*25}%.</span>`:''}</div>
+        <div class="muted" style="font-size:18px">${meta.mood<4?`Beat a Final Boss (day ${QUARTER*4}) on ${MOODS[meta.mood].name} to unlock ${MOODS[meta.mood+1].name}.`:'Every mood unlocked.'}</div></div>
+      <div class="box panel col"><div class="lbl">Seed (optional)</div><input id="seedIn" class="seedin" maxlength="24" placeholder="random" autocomplete="off" spellcheck="false">
+        <div class="muted" style="font-size:18px">Same seed, same town, same market. Share one with a friend.</div></div>
+    </div>
+    <div class="actions"><button class="ghost" data-act="title">Back</button><button data-act="start" ${ok?'':'disabled'}>Take the money</button></div>`; return;
   }
   if(scene==='help'){
     app.innerHTML=`<div class="h2" style="padding-top:8px">HOW TO PLAY</div>
     <div class="box panel col scroll grow" style="font-size:21px">
-      <div><b class="yel">Morning news.</b> Chip Bullock reports which sectors are up ▲ or down ▼ today. He's right about 80% of the time. Rex Shouter yells one hot pick. Rex is right about half the time.</div>
-      <div><b class="yel">Swipe.</b> Each stock certificate shows its sector, risk and a rumor. Pick a position size (10%, 25%, 50% of your morning cash, or Max), then swipe right to buy that many shares. Swipe left to pass. Stocks in a sector the news liked tend to rise.</div>
-      <div><b class="yel">Close.</b> You see how every stock did, even the ones you passed. Then rent is due. Rent grows every day.</div>
-      <div><b class="yel">Pitches.</b> Some mornings a founder pitches a startup with Team, Product, Market and Hype scores. Every quarter (4 days) it files a report: a new funding round that re-prices your stake, a buyout for cash, an IPO, a pivot, or bust. After a good round they may ask for more money: pay to keep your share, or pass and get diluted. Public shares move every day. The news hints which way, and you choose when to sell.</div>
-      <div><b class="yel">Real estate.</b> Tap Town between trading days to buy property. Every lot pays you each night, renovations raise income, and owning a whole district gives a 1.5x monopoly bonus. If you run out of cash, your shares and then your cheapest properties are sold for you. Own all 16 lots to become a Tycoon.</div>
-      <div><b class="yel">Broker.</b> At the end of every quarter you can buy perks. You hold up to 5. Tap a perk to read it.</div>
-      <div><b class="yel">Special certificates.</b> Gold Leaf: +50% gains. Volatile: double moves. Unlisted: no rumor, double moves. Blue Chip: half the moves, rises more often. Penny Stock: cheap and wild. Dividend: pays 4% of your stake either way.</div>
-      <div><b class="yel">Big orders.</b> Pour a lot of money into one stock and you move its price against yourself. The buy line warns you how much of the gain you lose. Calm, low-risk stocks absorb big orders best.</div>
-      <div><b class="yel">Events.</b> Every morning brings one: heat waves, rate hikes, tourist season, margin calls, flash crashes and more. Read the chyron.</div>
-      <div><b class="yel">The will.</b> Going broke earns Pearls for permanent upgrades.</div>
+      <div><b class="yel">Morning news.</b> Chip Bullock reports which sectors are up ▲ or down ▼. He's right about 80% of the time. Rex Shouter yells a hot pick. Rex is right about half the time. Some mornings a story unfolds over several days.</div>
+      <div><b class="yel">Swipe.</b> Each certificate shows a company from your market: sector, risk and a rumor. Pick a position size, swipe right to buy, left to pass.</div>
+      <div><b class="yel">Portfolio hands.</b> What you buy is your hand. Two in one sector is a Pair Trade, three is a Sector Sweep, all different is an Index Fund, and so on. The hand sets your starting MULT. Almanacs level hands up. Check the Ledger for every hand.</div>
+      <div><b class="yel">The Closing Bell.</b> Every buy that rose adds to GAINS. Then your perks fire left to right, adding (+) or multiplying (x) MULT. You earn GAINS x MULT. Losses are never multiplied. Order your perks: + before x.</div>
+      <div><b class="yel">Boss Landlords.</b> The last day of each quarter a Boss Landlord changes the rules and rent is 1.5x. The bar under your perks shows who is coming. Survive and you get a bounty and a free Memo. Every 4th quarter is a Final Boss.</div>
+      <div><b class="yel">Consumables.</b> Memos change a certificate in front of you (short it, stamp a seal, shred it from the market). Almanacs level a hand. Brown Envelopes are powerful and cost you something. Buy them at the Newsstand after each day.</div>
+      <div><b class="yel">Your market.</b> The same 20-odd companies keep coming back. Stamps and seals stick. Shred the ones you hate, copy the ones you love, and build a market that makes your favorite hand.</div>
+      <div><b class="yel">Broker.</b> At the end of each quarter you can buy perks. You hold 5. Rare perks and shiny editions show up sometimes.</div>
+      <div><b class="yel">Pitches and town.</b> Back startups that report every quarter. Buy property that pays every night. Each town is drawn from a dozen districts with their own quirks. Own all 16 lots to become a Tycoon, then keep going in endless mode.</div>
+      <div><b class="yel">The will.</b> Going broke earns Pearls for permanent upgrades. Unlock new aunts and moods by playing.</div>
     </div>
     <button data-act="title">Back</button>`; return;
   }
@@ -355,15 +751,19 @@ function render(){
     <button data-act="title">Back</button>`; return;
   }
   if(scene==='news'){
-    const crawl=run.hand.map(c=>`${c.tick} ${c.spark[13]>=c.spark[0]?'▲':'▼'} ${(Math.abs(c.spark[13]-c.spark[0])/10).toFixed(2)}`).join(' · ');
+    const crawl=run.hand.length?run.hand.map(c=>`${c.co.tick} ${c.spark[13]>=c.spark[0]?'▲':'▼'} ${(Math.abs(c.spark[13]-c.spark[0])/10).toFixed(2)}`).join(' · '):'MARKET CLOSED · MARKET CLOSED';
+    const ev=run.event, tag=ev.isBoss?(ev.final?'FINAL BOSS':'BOSS LANDLORD'):ev.id==='quiet'?'MARKET MORNING':'BREAKING';
+    const extra=[run.ate?`Mildred's Cat ate your ${run.ate}.`:'',...(run.delisted||[])].filter(Boolean);
     app.innerHTML=hud()+`<div class="col scroll grow">
-      ${tv(sprite('anchor'),run.event.id==='quiet'?'MARKET MORNING':'BREAKING',run.event.id==='quiet'?`Day ${run.day}. Here's what's moving.`:`${run.event.name}: ${run.event.txt}`,crawl,'MARKET MORNING')}
+      ${tv(sprite(ev.isBoss?'aunt':'anchor'),tag,ev.id==='quiet'?`Day ${run.day}. Here's what's moving.`:`${ev.name}: ${evTxt()}`,crawl,ev.isBoss?'RENT IS DUE':'MARKET MORNING',run.heat)}
       ${portfolioBox()}
-      <div class="col" style="gap:6px">${run.news.map(n=>`<div class="box hl">${n.sec?`<span>${secChip(n.sec)} <span class="${n.dir>0?'up':'down'}">${n.dir>0?'▲':'▼'}</span></span>`:n.hold?`<span><span class="sec" style="background:var(--yellow)">YOURS</span> <span class="${n.dir>0?'up':'down'}">${n.dir>0?'▲':'▼'}</span></span>`:'<span class="sec" style="background:var(--steel)">ALSO</span>'}<span>${n.txt}</span></div>`).join('')}</div>
-      <div class="pundit"><img class="px8" src="${sprite('pundit')}" width="56" height="56" alt="">
-        <div><div class="lbl" style="color:var(--cream)">Rex Shouter's hot pick</div><div class="shout">${run.rex.line}</div></div></div>
+      <div class="col" style="gap:6px">${run.news.map(n=>`<div class="box hl">${n.arc?`<span class="sec" style="background:var(--cream)">STORY</span>`:n.sec?`<span>${secChip(n.sec)} <span class="${n.dir>0?'up':'down'}">${n.dir>0?'▲':'▼'}</span></span>`:n.hold?`<span><span class="sec" style="background:var(--yellow)">YOURS</span> <span class="${n.dir>0?'up':'down'}">${n.dir>0?'▲':'▼'}</span></span>`:'<span class="sec" style="background:var(--steel)">ALSO</span>'}<span>${n.arc?`<b class="yel">${n.arc}.</b> `:''}${n.txt}</span></div>`).join('')}
+      ${extra.map(t=>`<div class="box hl"><span class="sec" style="background:var(--red);color:var(--cream)">NOTE</span><span>${t}</span></div>`).join('')}</div>
+      ${run.rex.length?`<div class="pundit"><img class="px8" src="${sprite('pundit')}" width="56" height="56" alt="">
+        <div><div class="lbl" style="color:var(--cream)">Rex Shouter's hot pick${run.rex.length>1?'s':''}</div>${run.rex.map(x=>`<div class="shout">${x.line}</div>`).join('')}</div></div>`
+        :`<div class="box hl"><span class="sec" style="background:var(--red);color:var(--cream)">REX</span><span>${run.hand.length?'Rex Shouter is off the air today.':'No market today.'}</span></div>`}
     </div>
-    <div class="actions"><button class="ghost" data-act="town">Town</button><button data-act="${run.pitch?'pitch':'play'}">${run.pitch?'A founder pitches':'Open market'}</button></div>`; return;
+    <div class="actions"><button class="ghost" data-act="town">Town</button>${!run.hand.length?'<button data-act="skipday">Close the day</button>':`<button data-act="${run.pitch?'pitch':'play'}">${run.pitch?'A founder pitches':'Open market'}</button>`}</div>`; return;
   }
   if(scene==='pitch'){
     const p=run.pitch;
@@ -385,38 +785,47 @@ function render(){
     <div class="actions"><button class="red" data-act="nopitch">← Pass</button><button class="green" data-act="yespitch" ${run.cash<=p.ask?'disabled':''}>Invest →</button></div>`; return;
   }
   if(scene==='play'){
-    const rest=run.hand.slice(run.idx,run.idx+3);
+    const rest=run.hand.slice(run.idx,run.idx+3), c=run.hand[run.idx], so=run.hand.filter(x=>x.bought);
+    const now=bestHand(so), ifBuy=bestHand([...so,c]), o=lot(c), k=o.sh?impact(c,o.cost):1;
     app.innerHTML=hud()+notesStrip()+`
     <div class="deck" id="deck">${rest.map((c,i)=>({c,i})).reverse().map(({c,i})=>i===0?cardHTML(c,false):`<div style="position:absolute;inset:0;transform:translateY(${i*8}px) scale(${1-i*.04});opacity:${1-i*.25}">${cardHTML(c,true)}</div>`).join('')}</div>
+    <div class="handline"><span class="lbl">Hand</span> ${handLabel(now)} <span class="muted">· buy this →</span> ${handLabel(ifBuy)}</div>
     <div class="sizes">${SIZES.map(z=>`<button class="${run.size===z?'':'ghost'}" data-act="size" data-z="${z}">${z>=1?'Max':Math.round(z*100)+'%'}</button>`).join('')}</div>
-    <div class="hintline muted tab">${(()=>{const c=run.hand[run.idx],L=lot(c),k=L.sh?impact(c,L.cost):1;return L.sh?`Buy ${L.sh.toLocaleString()} shares · ${fmt(L.cost)}${k<.95?` · <span class="down">big order, gains -${Math.round((1-k)*100)}%</span>`:''}`:"Can't afford a share"})()}</div>
+    <div class="hintline muted tab">${o.sh?`Buy ${o.sh.toLocaleString('en-US')} shares · ${fmtK(o.cost)}${k<.95&&!has('whale')?` · <span class="down">big order, gains -${Math.round((1-k)*100)}%</span>`:''}`:"Can't afford a share"}</div>
     <div class="actions"><button class="red" data-act="pass">← Pass</button><button class="green" data-act="buy">Buy →</button></div>`;
     bindSwipe(); return;
   }
   if(scene==='resolve'){
-    const r=run.result;
-    app.innerHTML=hud()+`<div class="h2">CLOSING BELL · DAY ${run.day}</div>
-    <div class="box panel col scroll grow pop">
-      <div class="res">${run.hand.map(c=>`<span class="t">${c.tick}</span>
-        <span>${c.bought?'<span class="pill yel">BOUGHT</span>':'<span class="pill muted">PASSED</span>'}${c.fraud?' <span class="pill down">FRAUD</span>':''}${c.penny?' <span class="pill yel">PENNY</span>':''}${c.bought&&ED(c).div?' <span class="pill up">DIV</span>':''}${c.slip?' <span class="pill down">BIG ORDER</span>':''}</span>
-        <span class="tab ${c.r>=0?'up':'down'}">${pct(c.r)}</span>
-        <span class="tab ${c.bought?(c.delta>=0?'up':'down'):'muted'}">${c.bought?(c.delta>=0?'+':'')+fmt(c.delta):'·'}</span>`).join('')}</div>
-      ${run.qres?`<div class="vres yel">★ End of Q${run.day/QUARTER}. Your startups have filed their quarterly reports.</div>`:''}
-      ${holdingsBox()}
-      <div class="sum tab">
-        <span>Trading</span><span class="${r.net>=0?'up':'down'}">${r.net>=0?'+':''}${fmt(r.net)}</span>
-        ${r.notes.map(n=>`<span>${n[0]}</span><span class="up">+${fmt(n[1])}</span>`).join('')}
-        ${r.vres.filter(v=>v.kind==='acq').map(v=>`<span>Buyout</span><span class="up">+${fmt(v.amt)}</span>`).join('')}
-        ${r.inc?`<span>Property income</span><span class="up">+${fmt(r.inc)}</span>`:''}
-        <span>Rent</span><span class="down">-${fmt(r.rent)}</span>
-        ${r.fire.map(f=>`<span>Fire sale: ${f[0]}</span><span class="up">+${fmt(f[1])}</span>`).join('')}
-        ${r.liquidated?`<span>Shares sold to cover rent</span><span class="up">+${fmt(r.liquidated)}</span>`:''}
-        <span class="yel">Cash now</span><span class="yel">${fmt(Math.max(0,run.cash))}</span>
+    const r=run.result, passed=run.hand.filter(c=>!c.bought);
+    app.innerHTML=hud()+`<div class="row between"><div class="h2">CLOSING BELL · DAY ${run.day}</div>${isBoss(run.day)?`<span class="pill down">${run.event.name.toUpperCase()}</span>`:''}</div>
+    <div id="board" class="board box heat${r.shown?run.heat:0}"><div class="bl"><span class="lbl">Gains</span><span id="tG" class="tab">${fmtK(r.shown?r.gains:0)}</span></div><span class="xx">x</span><div class="bl"><span class="lbl">MULT</span><span id="tM" class="tab mlt">${fmtM(r.shown?r.mult:1)}</span></div></div>
+    <div class="box panel col scroll grow pop" id="tally">
+      <div class="steps">${r.steps.length?r.steps.map(stepHTML).join(''):'<div class="muted">You sat this one out.</div>'}</div>
+      <div id="after" class="col" style="gap:8px">
+        <div class="total tab">${fmtK(r.gains)} x ${fmtM(r.mult)} = <b class="${r.total>0?'up':''}">${fmt(r.total)}</b></div>
+        ${r.tax?`<div class="down">The Tax Man took ${fmt(r.tax)}.</div>`:''}
+        ${passed.length?`<div class="passed muted">Passed: ${passed.map(c=>`${c.co.tick} <span class="${c.r>=0?'up':'down'}">${pct(c.r)}</span>${c.fraud?' (fraud)':''}`).join(' · ')}</div>`:''}
+        ${run.qres?`<div class="vres yel">★ End of Q${run.day/QUARTER}. Your startups have filed their quarterly reports.</div>`:''}
+        ${holdingsBox()}
+        <div class="sum tab">
+          <span>Trading</span><span class="${r.net>=0?'up':'down'}">${r.net>=0?'+':''}${fmt(r.net)}</span>
+          ${r.notes.map(n=>`<span>${n[0]}</span><span class="${n[1]>=0?'up':'down'}">${n[1]>=0?'+':''}${fmt(n[1])}</span>`).join('')}
+          ${r.vres.filter(v=>v.kind==='acq').map(v=>`<span>Buyout</span><span class="up">+${fmt(v.amt)}</span>`).join('')}
+          ${r.inc?`<span>Property income</span><span class="up">+${fmt(r.inc)}</span>`:''}
+          <span>${isBoss(run.day)?'Boss rent':'Rent'}</span><span class="down">-${fmt(r.rent)}</span>
+          ${r.fire.map(f=>`<span>Fire sale: ${f[0]}</span><span class="up">+${fmt(f[1])}</span>`).join('')}
+          ${r.liquidated?`<span>Shares sold to cover rent</span><span class="up">+${fmt(r.liquidated)}</span>`:''}
+          ${r.bounty?`<span class="yel">Boss bounty</span><span class="up">+${fmt(r.bounty)}</span>`:''}
+          <span class="yel">Cash now</span><span class="yel">${fmt(Math.max(0,run.cash))}</span>
+        </div>
+        ${r.prize?`<div class="yel">You beat ${run.event.name}. Prize: a ${r.prize} memo.</div>`:''}
+        ${r.moodUp?`<div class="yel">New mood unlocked: ${r.moodUp}.</div>`:''}
+        ${r.termite?`<div class="down">Termites chewed through ${r.termite}. Value and income down 20% until you repair it.</div>`:''}
+        ${r.saved?`<div class="yel">You pawned Aunt's Pearls for ${fmt(r.saved)}. She will never know.</div>`:''}
+        <div class="pundit mini"><img class="px8" src="${sprite('pundit')}" width="40" height="40" alt=""><div class="shout">${rexReaction(r)}</div></div>
       </div>
-      ${r.termite?`<div class="down">Termites chewed through ${r.termite}. Value and income down 20% until you repair it.</div>`:''}
-      ${r.saved?`<div class="yel">You pawned Aunt's Pearls for $60. She will never know.</div>`:''}
     </div>
-    ${run.qres?`<button data-act="quarter">Read quarterly reports</button>`:run.dead?`<button class="red" data-act="over">You're broke</button>`:`<div class="actions"><button class="ghost" data-act="town">Town</button>${run.day%QUARTER===0?`<button data-act="shop">Visit broker</button>`:`<button data-act="next">Next morning</button>`}</div>`}`; return;
+    ${run.qres?`<button data-act="quarter">Read quarterly reports</button>`:run.dead?`<button class="red" data-act="over">You're broke</button>`:`<div class="actions"><button class="ghost" data-act="town">Town</button><button data-act="shop">${isBoss(run.day)?'Visit broker':'Newsstand'}</button></div>`}`; return;
   }
   if(scene==='quarter'){
     const stat=k=>({team:'Team',product:'Product',market:'Market',hype:'Hype'})[k];
@@ -431,30 +840,68 @@ function render(){
     ${run.dead?`<button class="red" data-act="over">You're broke</button>`:`<div class="actions"><button class="ghost" data-act="town">Town</button><button data-act="shop">Visit broker</button></div>`}`; return;
   }
   if(scene==='shop'){
-    app.innerHTML=hud()+`<div class="row between"><div class="h2">THE BROKER</div><span class="muted">${run.perks.length}/5 perks</span></div>
-    <div class="col scroll grow">${shop.length?shop.map(id=>{const p=P(id),pr=priceOf(p);
-      return `<div class="box item"><div class="ico" style="background:${p.c}">${p.code}</div>
-      <div style="min-width:0"><div class="n">${p.name}</div><div class="ds">${p.desc}</div></div>
-      <button data-act="buyperk" data-id="${id}" ${run.cash<=pr||run.perks.length>=5?'disabled':''}>${fmt(pr)}</button></div>`}).join(''):'<div class="box panel muted">Sold out.</div>'}</div>
-    <div class="actions" style="grid-template-columns:1fr 1fr 1.2fr"><button class="ghost" data-act="reroll" ${run.cash<=run.reroll?'disabled':''}>Reroll ${fmtK(run.reroll)}</button><button class="ghost" data-act="town">Town</button><button data-act="next">Next day</button></div>`; return;
+    const broker=isBoss(run.day);
+    app.innerHTML=hud()+`<div class="row between"><div class="h2">${broker?'THE BROKER':'NEWSSTAND'}</div><span class="muted">${perkSlots()}/5 perks · ${run.cons.length}/${run.consMax} pockets</span></div>
+    <div class="col scroll grow">${shop.length?shop.map((o,i)=>{
+      if(o.t==='perk'){const p=P(o.id),e=PERK_EDS[o.ed];
+        return `<div class="box item ${o.sold?'sold':''} ${o.ed?'ped-'+o.ed:''}"><div class="ico" style="background:${p.c}">${p.code}</div>
+        <div style="min-width:0"><div class="n">${p.name} <span class="rar" style="color:${RARITY[p.r].c}">${RARITY[p.r].name}</span>${e?` <span class="rar yel">${e.name}</span>`:''}</div><div class="ds">${p.desc}${e?` <span class="yel">${e.txt}.</span>`:''}</div></div>
+        <button data-act="buyoffer" data-i="${i}" ${o.sold||run.cash<=o.price||(!slotFree()&&o.ed!=='fake')?'disabled':''}>${o.sold?'Sold':fmtK(o.price)}</button></div>`}
+      const k={k:o.k,id:o.id};
+      return `<div class="box item ${o.sold?'sold':''}"><div class="ico k-${o.k}">${consCode(k)}</div>
+        <div style="min-width:0"><div class="n">${consName(k)} <span class="rar muted">${KIND[o.k]}</span></div><div class="ds">${consDesc(k)}</div></div>
+        <button data-act="buyoffer" data-i="${i}" ${o.sold||run.cash<=o.price||run.cons.length>=run.consMax?'disabled':''}>${o.sold?'Sold':fmtK(o.price)}</button></div>`}).join(''):'<div class="box panel muted">Sold out.</div>'}
+      ${broker?'':`<div class="muted" style="font-size:18px">The Broker sells perks after the Boss Landlord on day ${nextBossDay(run.day)}.</div>`}</div>
+    <div class="actions" style="grid-template-columns:1fr 1fr 1.2fr"><button class="ghost" data-act="reroll" ${run.cash<=rerollCost()?'disabled':''}>Reroll ${fmtK(rerollCost())}</button><button class="ghost" data-act="town">Town</button><button data-act="next">Next day</button></div>`; return;
+  }
+  if(scene==='book'){
+    const tab=run.bookTab||'hands';
+    const tabs=`<div class="tabs">${['hands','market','run'].map(t=>`<button class="${t===tab?'':'ghost'}" data-act="tab" data-id="${t}">${t}</button>`).join('')}</div>`;
+    let body='';
+    if(tab==='hands') body=HANDS.map(h=>{const s=run.hands[h.id];return `<div class="box item hand" style="grid-template-columns:1fr auto">
+      <div><div class="n">${h.name} <span class="muted">lvl ${s.lvl}</span></div><div class="ds">${h.txt} Played ${s.played}x.</div></div><div class="mlt big">${fmtM(handMult(h.id))}</div></div>`}).join('');
+    if(tab==='market') body=`<div class="muted" style="font-size:18px">${run.deck.length} companies. Each morning ${4+meta.up.hand+(has('daytrader')?1:0)} are dealt.</div>`+run.deck.slice().sort((a,b)=>a.sec.localeCompare(b.sec)||a.tick.localeCompare(b.tick)).map(co=>{const life=co.price/co.list-1;
+      return `<div class="box co"><span>${secChip(co.sec)}</span><span class="d t">${co.tick}</span><span class="muted">${'▮'.repeat(co.vol)}</span>
+      <span class="tags">${co.ed?`<i>${EDITIONS[co.ed].name}</i>`:''}${co.enh?`<i class="e">${ENH[co.enh].name}</i>`:''}${co.seal?`<i style="background:${SEALS[co.seal].c}">${SEALS[co.seal].name}</i>`:''}</span>
+      <span class="tab ${life>=0?'up':'down'}">${fmtP(co.price)}</span></div>`}).join('');
+    if(tab==='run'){const A=AUNTS.find(a=>a.id===run.aunt),arc=run.arc&&ARCS.find(a=>a.id===run.arc.id);
+      body=`<div class="box panel col" style="gap:4px">
+        <div class="row between"><span class="muted">Seed</span><span class="d yel">${run.seed}</span></div>
+        <div class="row between"><span class="muted">Aunt</span><span>${A.name}</span></div>
+        <div class="row between"><span class="muted">Mood</span><span>${MOODS[run.mood].name}</span></div>
+        <div class="row between"><span class="muted">Bosses beaten</span><span>${run.bossesBeat}</span></div>
+        <div class="row between"><span class="muted">Best Closing Bell</span><span>${run.best?`${fmtK(run.best.total)} (${run.best.hand})`:'none yet'}</span></div>
+        ${arc?`<div class="row between"><span class="muted">Story</span><span>${arc.name}</span></div>`:''}</div>
+        <div class="box panel col"><div class="lbl">This quarter's boss · day ${nextBossDay(run.day)}</div><div class="d yel">${run.boss.name}</div><div>${run.boss.txt}</div><div class="muted" style="font-size:18px">Boss rent is ${BOSS_RENT}x. Survive for a bounty and a free Memo.</div></div>
+        <div class="box panel col"><div class="lbl">Town</div>${run.town.map(d=>`<div><b style="color:${d.c}">${d.name}</b> <span class="muted">(${d.sec})</span> ${d.txt}</div>`).join('')}</div>`}
+    app.innerHTML=hud()+`<div class="h2">THE LEDGER</div>${tabs}<div class="col scroll grow">${body}</div><button data-act="back">Back</button>`; return;
   }
   if(scene==='town'){
     app.innerHTML=hud()+`<div class="row between"><div class="h2">MILDRED'S TOWN</div><span class="tab ${run.hlast>=0?'up':'down'}">Housing ${pct(run.hlast)}</span></div>
     <div class="col scroll grow">
-      ${DISTRICTS.map(d=>`<div class="col" style="gap:6px"><div class="row between"><span class="lbl" style="color:${d.c}">${d.name}</span>${monopoly(d.id)?`<span class="pill yel">MONOPOLY ×${monoMult()}</span>`:''}</div>
-        <div class="lots">${LOTS.filter(l=>l.dist===d.id).map(l=>{const o=run.props[l.id];
+      ${run.town.map(d=>`<div class="col" style="gap:6px"><div class="row between"><span class="lbl" style="color:${d.c}">${d.name} · ${d.sec}</span>${monopoly(d.id)?`<span class="pill yel">MONOPOLY ×${monoMult(d.id)}</span>`:''}</div>
+        ${d.gim?`<div class="muted" style="font-size:17px;margin-top:-4px">${d.txt}</div>`:''}
+        <div class="lots">${run.lots.filter(l=>l.dist===d.id).map(l=>{const o=run.props[l.id];
           return `<button class="lot ${o?'own':''} ${run.sel===l.id?'sel':''}" data-act="lot" data-id="${l.id}"><img class="px8" src="${bldg(l)}" alt="" width="40" height="40"><span class="ln">${l.name}</span><span class="lp tab">${o?'+'+fmtK(propInc(l.id))+'/d':fmtK(lotPrice(l))}</span></button>`}).join('')}</div></div>`).join('')}
       <div class="muted" style="font-size:19px">Owned: ${Object.keys(run.props).length}/16 · Property worth ${fmt(propTotal())} · Net worth ${fmt(netWorth())}</div>
     </div>
-    ${run.sel?propPanel(run.sel):'<div class="box panel muted" style="font-size:19px">Tap a lot to see it. Own every lot in a district for a 1.5x monopoly. Own all 16 to become a Tycoon.</div>'}
+    ${run.sel?propPanel(run.sel):'<div class="box panel muted" style="font-size:19px">Tap a lot to see it. Own a whole district for a monopoly bonus. Each district is tied to a stock sector. Own all 16 to become a Tycoon.</div>'}
     <button data-act="back">Back</button>`; return;
   }
   if(scene==='tycoon'){
     app.innerHTML=`<div class="grow"></div>
-    ${tv(sprite('aunt'),'BREAKING','Great-nephew now owns the entire town','EVERY LOT ▲ · MILDRED ▲ ▲ ▲ · RENT: WHO CARES · TOWN RENAMED','INHERITANCE HOUR')}
+    ${tv(sprite('aunt'),'BREAKING','Great-nephew now owns the entire town','EVERY LOT ▲ · MILDRED ▲ ▲ ▲ · RENT: WHO CARES · TOWN RENAMED','INHERITANCE HOUR',2)}
     <div class="logo">TYCOON</div>
     <div style="font-size:22px">You own all 16 lots and earn ${fmt(totalInc())} every night. Mildred framed your photo. +25 pearls, and +10 more when this run ends.</div>
+    <div style="font-size:20px" class="yel">Keep playing for endless mode: rent compounds every day. How big can the number get?</div>
     <button data-act="town2">Keep playing</button><div class="grow"></div>`; return;
+  }
+  if(scene==='ascend'){
+    app.innerHTML=`<div class="grow"></div>
+    ${tv(sprite('aunt'),'SIGNAL LOST','MORE MONEY THAN MONEY','▓▒░ ▓▒░ ▓▒░ ▓▒░ ▓▒░','???',3)}
+    <div class="logo">${fmt(netWorth())}</div>
+    <div style="font-size:24px">The static clears. Mildred is on every channel at once. "I knew you could do it, dear."</div>
+    <button data-act="next">Keep going anyway</button><div class="grow"></div>`; return;
   }
   if(scene==='over'){
     app.innerHTML=`<div class="grow"></div>
@@ -463,19 +910,36 @@ function render(){
     <div class="box panel col" style="gap:4px">
       <div class="row between"><span class="muted">Days lasted</span><span class="tab">${run.day}</span></div>
       <div class="row between"><span class="muted">Peak net worth</span><span class="tab">${fmt(run.peak)}</span></div>
+      <div class="row between"><span class="muted">Best Closing Bell</span><span class="tab">${run.best?`${fmtK(run.best.total)} · ${run.best.hand}`:'none'}</span></div>
+      <div class="row between"><span class="muted">Bosses beaten</span><span class="tab">${run.bossesBeat}</span></div>
+      <div class="row between"><span class="muted">Seed</span><span class="d yel">${run.seed}</span></div>
       <div class="row between"><span class="muted">Pearls earned</span><span class="yel tab">+${run.earned}</span></div>
     </div>
-    <div class="col"><button data-act="start">Ask for more money</button>
+    <div class="col"><button data-act="setup">Ask for more money</button>
+      <div class="actions"><button class="ghost" data-act="replay">Same seed</button><button class="ghost" data-act="share">Share certificate</button></div>
       <div class="actions"><button class="ghost" data-act="will">The will</button><button class="ghost" data-act="title">Title</button></div></div>
     <div class="grow"></div>`;
   }
 }
+const dailyId=()=>{const d=new Date();return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`};
+function auntOpen(a){const u=a.unlock;if(!u)return true;
+  return (u.runs&&meta.runs>=u.runs)||(u.days&&meta.best>=u.days)||(u.mono&&meta.mono)||(u.peak&&meta.bestCash>=u.peak)||false}
 
 /* ===== Input ===== */
 if(app) app.addEventListener('click',e=>{
+  unlock();
   const el=e.target.closest('[data-act]'); if(!el) return;
-  const a=el.dataset.act, id=el.dataset.id;
-  if(a==='start') newRun();
+  const a=el.dataset.act, id=el.dataset.id, i=+el.dataset.i;
+  if(a==='closemodal'&&el.classList.contains('modal')&&e.target.closest('.sheet')) return;   // taps inside the sheet don't close it
+  if(a==='setup'){scene='setup';setup.mood=Math.min(setup.mood,meta.mood);render()}
+  else if(a==='aunt'){setup.aunt=(setup.aunt+(+el.dataset.d)+AUNTS.length)%AUNTS.length;render()}
+  else if(a==='mood'){setup.mood=clamp(setup.mood+(+el.dataset.d),0,meta.mood);render()}
+  else if(a==='start'){const s=document.getElementById('seedIn');newRun({aunt:AUNTS[setup.aunt].id,mood:setup.mood,seed:s&&s.value.trim()||null})}
+  else if(a==='daily'){const d=dailyId();newRun({seed:'DAILY-'+d,daily:d})}
+  else if(a==='replay'){newRun({aunt:run.aunt,mood:run.mood,seed:run.seed})}
+  else if(a==='share'){const b=run.best;shareCertificate({title:run.tycoon?'TYCOON':'BROKE',days:run.day,peak:fmtK(run.peak),hand:b?`${b.hand} for ${fmtK(b.total)}`:'none',
+    aunt:AUNTS.find(x=>x.id===run.aunt).name,mood:MOODS[run.mood].name,perks:run.perks.map(p=>P(p.id).name).join(', '),seed:run.seed})}
+  else if(a==='mute'){meta.mute=meta.mute?0:1;setMuted(meta.mute);saveMeta();render()}
   else if(a==='title'){scene='title';render()}
   else if(a==='will'){scene='will';render()}
   else if(a==='help'){scene='help';render()}
@@ -484,27 +948,39 @@ if(app) app.addEventListener('click',e=>{
   else if(a==='yespitch') decidePitch(true);
   else if(a==='nopitch') decidePitch(false);
   else if(a==='play'){scene='play';render()}
+  else if(a==='skipday') resolveDay();
   else if(a==='buy') flyOut(1);
   else if(a==='pass') flyOut(-1);
-  else if(a==='perk'){const p=P(id);toast(`${p.name}: ${p.desc}`)}
+  else if(a==='perk'){run.modal={kind:'perk',i};render()}
+  else if(a==='cons'){run.modal={kind:'cons',i};render()}
+  else if(a==='closemodal'){run.modal=null;render()}
+  else if(a==='pleft') movePerk(run.modal.i,-1);
+  else if(a==='pright') movePerk(run.modal.i,1);
+  else if(a==='psell') sellPerk(run.modal.i);
+  else if(a==='cuse') useCons(run.modal.i);
+  else if(a==='csell'){const k=run.cons[run.modal.i];if(k){run.cash+=Math.round(consPrice(k.k)/2);run.cons.splice(run.modal.i,1);run.modal=null;render()}}
+  else if(a==='book'){if(scene!=='book')run.back=scene;scene='book';render()}
+  else if(a==='tab'){run.bookTab=id;render()}
   else if(a==='next') startDay();
   else if(a==='shop') openShop();
   else if(a==='over'){scene='over';render()}
-  else if(a==='buyperk'){const p=P(id),pr=priceOf(p);if(run.cash>pr&&run.perks.length<5){run.cash-=pr;run.perks.push(id);shop=shop.filter(x=>x!==id);render()}}
-  else if(a==='sell'){const h=run.holdings[+el.dataset.i];if(h){run.cash+=Math.round(h.value);run.peak=Math.max(run.peak,run.cash);run.holdings.splice(+el.dataset.i,1);if(run.snap){run.snap.cash=run.cash;run.snap.hold=run.holdings.reduce((s,h)=>s+h.value,0)}toast(`Sold ${h.name} for ${fmt(h.value)} (${(h.value/h.basis).toFixed(1)}x).`);render()}}
-  else if(a==='reroll'){if(run.cash>run.reroll){run.cash-=run.reroll;run.reroll+=3000;openShop()}}
+  else if(a==='buyoffer') buyOffer(i);
+  else if(a==='sell'){const h=run.holdings[i];if(h){run.cash+=Math.round(h.value);run.peak=Math.max(run.peak,run.cash);run.holdings.splice(i,1);resetCat();if(run.snap){run.snap.cash=run.cash;run.snap.hold=holdVal()}toast(`Sold ${h.name} for ${fmt(h.value)} (${(h.value/h.basis).toFixed(1)}x).`);render()}}
+  else if(a==='reroll'){const c=rerollCost();if(run.cash>c){run.cash-=c;run.reroll+=3000;openShop(true)}}
   else if(a==='town'){run.back=scene;scene='town';render()}
-  else if(a==='town2'){scene='town';render()}
+  else if(a==='town2'){run.endless=true;run.tyDay=run.day;run.back=run.dead?'over':'resolve';scene='town';render()}
   else if(a==='back'){scene=run.back||'news';render()}
   else if(a==='lot'){run.sel=run.sel===id?null:id;render()}
   else if(a==='buyprop') buyLot(run.sel);
   else if(a==='reno'){const id2=run.sel,o=run.props[id2],c=renoCost(id2);if(o&&run.cash>c&&!(o.lvl>=3&&o.dmg>=1)){run.cash-=c;if(o.lvl<3)o.lvl++;o.dmg=1;render()}}
-  else if(a==='sellprop'){const id2=run.sel;if(run.props[id2]){const v=sellPrice(id2);run.cash+=v;delete run.props[id2];toast(`Sold ${L(id2).name} for ${fmt(v)}.`);render()}}
+  else if(a==='sellprop'){const id2=run.sel;if(run.props[id2]&&!(gim(L(id2)).noSell)){const v=sellPrice(id2);run.cash+=v;delete run.props[id2];resetCat();toast(`Sold ${L(id2).name} for ${fmt(v)}.`);render()}}
   else if(a==='size'){run.size=+el.dataset.z;render()}
   else if(a==='quarter'){scene='quarter';render()}
   else if(a==='follow'||a==='nofollow'){if(followOn(id,a==='follow'))render()}
 });
 if(app) document.addEventListener('keydown',e=>{
+  if(e.target&&e.target.tagName==='INPUT') return;
+  if(run&&run.modal){if(e.key==='Escape'){run.modal=null;render()}return}
   if(scene==='play'){if(e.key==='ArrowRight')flyOut(1);if(e.key==='ArrowLeft')flyOut(-1)}
   else if(scene==='pitch'){if(e.key==='ArrowRight')decidePitch(true);if(e.key==='ArrowLeft')decidePitch(false)}
 });
@@ -520,7 +996,7 @@ function bindSwipe(){
   const card=document.querySelector('#deck .card:not(.back)'); if(!card) return;
   const sb=card.querySelector('.buy'), sp=card.querySelector('.pass');
   let x0=null,dx=0;
-  card.addEventListener('pointerdown',e=>{x0=e.clientX;dx=0;card.setPointerCapture(e.pointerId);card.style.transition='none'});
+  card.addEventListener('pointerdown',e=>{unlock();x0=e.clientX;dx=0;card.setPointerCapture(e.pointerId);card.style.transition='none'});
   card.addEventListener('pointermove',e=>{if(x0===null)return;dx=e.clientX-x0;
     card.style.transform=`translateX(${dx}px) rotate(${dx/18}deg)`;
     sb.style.opacity=clamp(dx/90,0,1); sp.style.opacity=clamp(-dx/90,0,1);});
@@ -532,15 +1008,17 @@ function bindSwipe(){
 let tt;
 function toast(msg){if(headless)return;const t=document.getElementById('toast');t.textContent=msg;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2800)}
 
-/* ===== Boot (keeps a run alive across live updates) ===== */
+/* ===== Boot ===== */
 export function boot(){ render(); }
 
 /* ===== Test and simulation hooks ===== */
 // Lets tests and scripts/sim.mjs drive the game without a browser.
 export const api={
-  get run(){return run}, get meta(){return meta}, get scene(){return scene},
+  get run(){return run}, get meta(){return meta}, get scene(){return scene}, get shop(){return shop},
   resetMeta(){meta=loadMeta()},
   setScene(s){scene=s},
   setHeadless(v){headless=v||!app},
-  newRun, startDay, choose, decidePitch, followOn, buyLot, openShop, makePitch, lotPrice, rentFor, render,
+  setEvent(ev){run.event=ev;buildFx()},
+  newRun, startDay, choose, decidePitch, followOn, buyLot, openShop, buyOffer, useCons, sellPerk, movePerk, makePitch, lotPrice, rentFor, rentTonight,
+  render, activePerks, handMult, netWorth, newPerk, isBoss,
 };

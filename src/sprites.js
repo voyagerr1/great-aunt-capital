@@ -1,5 +1,4 @@
 // Pixel-art sprites drawn to 16x16 canvases and cached as data URLs.
-import { DISTRICTS } from './data/content.js';
 /* ===== Pixel sprites ===== */
 export const BODY=["....cwwttwwc....","...ccwwttwwcc...","..cccwwttwwccc..","..ccccwttwcccc..","..ccccctttcccc..","..cccccttccccc..","..cccccccccccc.."];
 export const FACE=["....ssssssss....","....seessees....","....ssssssss....",".....smmmms.....","......ssss......"];
@@ -25,7 +24,7 @@ export function sprite(kind,over){
 export const bldgCache={};
 export function bldg(l){
   if(bldgCache[l.id]) return bldgCache[l.id];
-  const cv=document.createElement('canvas');cv.width=16;cv.height=16;const g=cv.getContext('2d'),c=DISTRICTS[l.di].c;
+  const cv=document.createElement('canvas');cv.width=16;cv.height=16;const g=cv.getContext('2d'),c=l.c;
   const H=[[5,7,8,9],[6,7,9,10],[6,8,10,12],[10,12,13,15]][l.di][l.tier], W=[8,10,12,13][l.tier], x0=Math.floor((16-W)/2), y0=15-H;
   g.fillStyle='#0e1838';g.fillRect(0,15,16,1);g.fillRect(x0-1,y0-1,W+2,H+1);
   g.fillStyle=c;g.fillRect(x0,y0,W,H);
@@ -33,6 +32,6 @@ export function bldg(l){
   g.fillStyle='#ffd23f';for(let y=y0+2;y<14;y+=2)for(let x=x0+1;x<x0+W-1;x+=2)if((x*7+y*3+l.tier)%5)g.fillRect(x,y,1,1);
   g.fillStyle='#0e1838';g.fillRect(x0+Math.floor(W/2)-1,13,2,2);
   if(l.di===3){g.fillRect(x0+Math.floor(W/2),y0-3,1,3)}
-  if(l.id==='stand'){g.fillStyle='#e8433a';for(let x=x0;x<x0+W;x+=2)g.fillRect(x,y0-1,1,1)}
+  if(l.name==='Lemonade Stand'){g.fillStyle='#e8433a';for(let x=x0;x<x0+W;x+=2)g.fillRect(x,y0-1,1,1)}
   return bldgCache[l.id]=cv.toDataURL();
 }

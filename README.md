@@ -1,8 +1,10 @@
 # Great Aunt Capital
 
 A pixel roguelite set on a 1980s cable finance channel. Great Aunt Mildred gives you $100,000.
-Watch the morning news, swipe on stock certificates, back startups that report every quarter,
-buy up the town, and stay ahead of rent. Go broke, earn Pearls, come back stronger.
+Watch the morning news, swipe on stock certificates, and at the Closing Bell multiply your gains
+with portfolio hands and perks that trigger left to right. Beat the Boss Landlord every quarter,
+build your own market with Memos and seals, back startups, buy up a different town every run,
+and stay ahead of rent. Go broke, earn Pearls, unlock new aunts, come back meaner.
 
 ## Play
 Once GitHub Pages is on, the game lives at `https://<your-username>.github.io/great-aunt-capital/`.

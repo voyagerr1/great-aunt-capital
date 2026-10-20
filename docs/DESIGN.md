@@ -1,102 +1,160 @@
 # Great Aunt Capital — Design Notes
 
-Version 0.5. Numbers live in `src/data/content.js` and `src/game.js`; this doc explains them.
+Version 0.6 ("the MULT update"). Numbers live in `src/data/content.js`, `src/engine/` and `src/game.js`; this doc explains them.
 
 ## Pitch
-Great Aunt Mildred hands you $100,000. Read the morning news, swipe on stock certificates,
-back weird startups, buy the town, and stay ahead of rent. Every run ends broke, except for a
-truly great run, where you own everything and live off passive income.
+Great Aunt Mildred hands you $100,000. Read the morning news, swipe on stock certificates, stack MULT
+at the Closing Bell, survive the Boss Landlords, back weird startups and buy the town. Most runs end
+broke. A few break wide open, and those are the ones people remember.
 
 Look: a 1980s cable finance channel (GAC-TV). Navy studio, yellow chyrons, LIVE bug, ticker
 crawl, pixel anchors. Stocks are engraved certificates.
 
+## Run setup
+- **Aunts** (starting decks): Mildred (classic), Bernice (CRYPTO/MEME market, moves 1.5x; 3 runs),
+  Gloria ($25K + the cheapest lot in district 2, no market on day 1; last 10 days),
+  The Twin Aunts (+2 broker offers, 3rd consumable slot, rent +20%; own a district),
+  Aunt Ruth's Ghost ($10K + 10% of best peak, 4 Haunted companies; reach $5M).
+- **Mildred's Mood** (stakes, cumulative): Pleased → Concerned (rent +25%) → Disappointed (rumors −10%)
+  → Furious (perks +50% price, one fewer offer) → Writing You Out of the Will (−$50K start, Final Boss every
+  other quarter). Beat a Final Boss on your highest mood to unlock the next. Pearls +25% per mood level.
+- **Seeds.** Every run is seeded (mulberry32 in `util.js`). Same seed = same town, market and boss order
+  (as long as you make the same choices). The **Daily Market** uses `DAILY-YYYYMMDD`.
+
 ## The day loop
-1. **Morning news (GAC-TV Market Morning).**
-   - Portfolio report: net worth, change since yesterday, all-time vs the starting gift, and a
-     breakdown by cash, property, startups and listed shares.
-   - Two sector headlines (▲/▼). Each day two sectors have a hidden trend. Headlines report it
-     correctly 80% of the time (Premium Cable upgrade and Anchor's Nephew perk raise this).
-   - One extra headline about a listed share you own (hints its next move), else fluff.
-   - Rex Shouter's hot pick on one stock: right 55% of the time.
-   - Daily event chyron (see Events).
+1. **Morning news.** Portfolio report, two sector headlines (80% accurate), a headline about a listed share
+   you own (or fluff), a story-arc headline if one is running, Rex Shouter's hot pick (55%), the daily event.
 2. **Pitch (sometimes).** From day 2, 45% chance (80% Seed Fund, +15% per Rolodex level), at most 3 open startups.
-3. **Market.** 4 certificates (+1 per Longer Ticker Tape level, +1 Day Trader). Each has sector, risk 1–3,
-   price per share, a rumor (65% accurate), sparkline. Pick a position size
-   (10/25/50% of morning cash, or Max) and swipe right to buy whole shares, left to pass.
-4. **Closing bell.** Every stock's move is revealed, including passed ones. Then property
-   income, then rent. Quarter end (every 4 days): startup reports, then the broker.
+3. **Market.** 4 certificates (+1 per Longer Ticker Tape level, +1 Day Trader) dealt from **your market deck**.
+   Pick a position size and swipe. The play screen shows your hand so far and what this buy would make it.
+4. **Closing Bell.** The scoring tally (below). Then property income, rent, and on the last day of the
+   quarter: startup reports and the Boss bounty.
+5. **Newsstand** every day (3 consumables). On boss days it is **the Broker**: 3 perks + 2 consumables.
+
+## The Closing Bell (scoring)
+```
+MULT  = portfolio hand MULT
+for each buy, left to right:
+    if it rose: GAINS += stake x move     (Red Seal / Goose Lord / Echo Chamber retrigger this)
+                Hot Tip stamp +4 MULT, then every perk's card hook, left to right
+    else:       LOSSES += stake x move    (never multiplied)
+for each perk, left to right: its end hook (+MULT or xMULT), then its edition (Embossed +3, Holographic x1.5)
+event: Bull Run x1.5
+PROFIT = GAINS x MULT + LOSSES + cash bonuses (dividends, Scalper, Gold Seal, Hedge Hog)
+```
+Order matters: +MULT perks belong to the left of xMULT perks. The Intern copies the perk to its right.
+Studio heat: MULT 10+ sets the LIVE bug on fire, 100+ speeds up the ticker, 1000+ turns the set red.
+
+### Portfolio hands (`HANDS`)
+| Hand | Needs | Base | +per level |
+|---|---|---|---|
+| Single Bet | 1 buy | 1 | 1 |
+| Spread Bet | 2+ buys, no pattern | 1 | 1 |
+| Pair Trade | 2 in one sector | 2 | 1 |
+| Two Pair Trade | 2 + 2 | 3 | 1 |
+| Safe Haven | 3+ buys, all risk 1 | 3 | 1 |
+| Index Fund | 4+ buys, all different sectors | 3 | 1 |
+| Sector Sweep | 3+ in one sector | 4 | 2 |
+| YOLO | 3+ buys, all risk 3 | 4 | 2 |
+| The Whole Market | buy every certificate (4+) | 5 | 2 |
+| Full Portfolio | 3 + 2 | 6 | 2 |
+| Penny Parade | 3+ Penny Stocks | 6 | 3 |
+| Cornered Market | 4+ in one sector | 7 | 3 |
+
+The best hand you qualify for (by current MULT) counts. Almanacs level a hand up.
 
 ## Stock math
-- Trend sector up: 78% chance to rise; down: 26%; otherwise 52%. Bear Hug event −17 points.
-- Move size: `rand(0.25..1) × vol` where vol = 0.2 / 0.45 / 0.9 by risk. Up moves ×1.5.
-- Editions (`EDITIONS`): Gold Leaf (+50% gains), Volatile (×2 moves), Unlisted (no rumor, ×2 moves),
-  Blue Chip (×0.5 moves, +10 points to rise), Penny Stock ($0.20–$3, risk 3, ×1.6 moves),
-  Dividend (pays 4% of the stake at close either way). About 33% of certificates have one.
-- **Big orders.** Gains on a buy are multiplied by `depth / (depth + stake)`. Depth (`DEPTH`) is
-  $2M / $900K / $400K by risk, ×3 Blue Chip, ×0.5 Unlisted, ×0.4 Penny. The buy line warns when a
-  buy loses more than 5% of its gain. This is what stops 50%/Max sizing from snowballing.
+- Trend sector up: 78% chance to rise; down: 26%; otherwise 52%. Bear Hug −17 points.
+- Move size: `rand(0.25..1) × vol`, vol = 0.08 / 0.17 / 0.34 by risk. Up moves ×1.3. (v0.5 was 0.2/0.45/0.9 with ×1.5;
+  MULT does the heavy lifting now.)
+- Editions (company-level, persist): Gold Leaf (+50% gains), Volatile (×2), Unlisted (no rumor, ×2),
+  Blue Chip (×0.5, +10 points), Penny Stock ($0.20–$3, risk 3, ×1.6), Dividend (4% of stake either way).
+- **Big orders.** Gains on a buy are multiplied by `depth / (depth + stake)`; depth $2M / $900K / $400K by risk.
+  The Whale ignores it.
+
+## The market deck
+- Each run starts with 20 companies spread across the 7 base sectors (Bernice: CRYPTO/MEME). Every morning a
+  random handful is dealt. Companies keep their price, edition, stamp and seal; the certificate shows how often
+  you have seen it and its change since listing.
+- **Stamps** (`ENH`): Notarized (loses at most 10%), Haunted (copies the move of the certificate before it),
+  Glass (×3 moves, 25% chance to shatter out of the market when bought), Hot Tip (+4 MULT when bought and up).
+- **Seals** (`SEALS`): Red (retrigger), Gold (buying pays half of tonight's rent), Blue (buying gives the
+  Almanac for today's hand).
+- A company whose price falls below 15% of its listing price, or turns out to be a fraud, is delisted.
+  The market is topped back up to 12 companies.
+- Story arcs can add hidden sectors (ALIEN, BEES) with 3 new companies.
+
+## Consumables (2 pockets; Twin Aunts 3)
+- **Memos** (`MEMOS`, $5K × inflation): most apply to the certificate in front of you: Insider Tip, Short Sell,
+  Stock Split, Gold Leaf, Notary Stamp, Glass Job, Seance, Hot Tip, Red/Gold/Blue Seal, Shredder (remove from
+  market), Photocopier (clone), Merger (move edition/stamp/seal to the next certificate), Pump (sector up tomorrow).
+- **Almanacs** ($4K × inflation): +1 level to one hand. Half of them favor your most-played hand.
+- **Brown Envelopes** ($10K × inflation): Legendary Tip (Legendary perk, lose half your cash), Hostile Takeover,
+  Black Swan (all hands +1), Shell Company (3 Glass companies), Counterfeit, Insider Ring (3 days of true rumors),
+  Offshore Will (copy one perk, destroy the rest), Offshore Account (3 nights of rent now, rent 1.5x to quarter end).
+- Inflation = `max(1, baseRent(day) / $12K)`, so prices keep pace with rent.
+
+## Perks (hold 5; Counterfeit takes no slot)
+Rarity weights in the Broker: Common 70, Uncommon 25, Rare 5. Legendary only from Brown Envelopes.
+Editions roll on 17% of offers (Embossed 10%, Holographic 5%, Counterfeit 2%) and cost 1.5x.
+Sell any perk for half its price; Ponzi Pete counts every sale. Hooks live in `src/engine/perks.js`.
+47 perks; see `PERKS` for the list. Scaling ones: Compound Cat (+x0.2 per day held, reset by selling a share or
+lot), Golden Parachute (+x0.5 per startup bust), Lawn Gnome (+2 per boss beaten), Swipe Right Sally (+0.25 per
+stock bought), Mildred Herself (x1 per 4 days).
+
+## Boss Landlords
+- The last day of every quarter (day 4, 8, 12...). The boss is drawn at the start of the quarter and shown in
+  the bar under your perks. Boss rent is 1.5x on top of the boss's own effect.
+- Bosses (`BOSSES`): The Goose, The Auditor, Mildred's Birthday, The Shortseller, Blackout Barry,
+  Rex Shouter Himself, The Tax Man, The Hedge Fund Bro, The Margin Clerk, The Wall, The Fortune Teller, The Repo Man.
+- Final Bosses every 4th quarter (`FINALS`): Mildred's Accountant, The Family Lawyer, The Estranged Cousin, The Executor.
+- Survive: bounty of one night's rent, a free Memo, +1 bosses beaten (Lawn Gnome, pearls).
+
+## Events and story arcs
+- One event per day (day 1 is quiet, boss days use the boss). Each event is data with `fx` (keys listed above
+  `EVENTS`). District events (Tourist Season, Block Party, Blackout) hit a random district of this run's town.
+- **Story arcs** (`ARCS`): from day 3, 14% chance per day to start one you haven't seen this run. 3 steps told
+  through the news, each with optional fx: The Goose Lawsuit (branching verdict), Rex's Comeback Tour,
+  First Contact (adds ALIEN), The Bee Situation (adds BEES), Mildred's Cruise, The Great Pickle Heist,
+  The Toaster Uprising.
 
 ## Startups (quarterly)
-- Stats 1–5: Team, Product, Market, Hype. Traits nudge stats; "Already profitable" flags
-  the company as profitable.
-- Ask: 12–25% of current cash. Your stake value = ask × valuation multiple `m`.
-- Each quarter end: bust chance `0.38 − q·0.32` (q = (team+product+market)/15; profitable ×0.4;
-  Angel Wings −0.10). Exit chance `0.10 + 0.18·round` (+0.15 profitable).
-  Exit is IPO (likelier with Hype) or buyout for cash. Otherwise 12% pivot (new idea, every stat
-  shifts −2..+2, `m` × 0.5–1.3), else a funding round re-prices `m` and shifts one stat up or down.
-- **Follow-on rounds.** After an up round, 50% chance the startup asks for 25–50% of your stake's
-  value. Pay: the cash joins your stake at the current price and you keep your %. Pass (or leave
-  for the broker without deciding): `m` ×0.75 and your % shrinks by a quarter.
-- IPO shares become listed holdings that move daily (bigger swings the first 2 days). You sell
-  when you like. Morning news hints their direction.
+Unchanged from v0.5: stats 1–5, bust chance `0.38 − q·0.32`, exits, pivots, funding rounds, follow-ons, IPOs.
+Golden Parachute turns busts into MULT.
 
-## Real estate (Mildred's Town)
-- 16 lots, 4 districts (Old Town, Suburbs, Harbor, Skyline), $15K to $20M.
-- Nightly income = price × yield (16% down to 12% per day) × renovation (1 / 1.5 / 2.2)
-  × monopoly (1.5 if the whole district is owned, 2 with Zoning Board) × Slumlord Sal (1.4)
-  × district events (Tourist Season, Block Party, Blackout).
-- A housing index moves −2.5% to +3.5% per day and scales prices and values.
-- Renovate: 40% of price × level. Termites cut a building 20% until repaired.
-- Selling returns 95% of value (120% with House Flipper). If you go broke, listed shares are
-  sold first, then the cheapest properties at 70%.
-- Own all 16 lots: **Tycoon** ending (+25 pearls now, +10 at run end). You can keep playing.
+## Real estate (procedural town)
+- Each run draws 4 of 12 districts (`DISTRICT_POOL`). District slot sets the price tier ($15K to $20M, yields 16%
+  down to 12% per night). Each district is tied to a stock sector (Vertical Integration: +1 MULT per lot).
+- Gimmicks: Casino Strip (0–3x nightly), Haunted Hill (half price, 15% chance a lot pays nothing),
+  Moon Base (monopoly 2.5x), Goose Sanctuary (1.5x, can't sell), Crypto Valley (2x / 0.5x with CRYPTO news),
+  Farmland (ignores housing index), Theme Park (+4% per lot owned), Mega Mall (2.5x on boss days).
+- Nightly income = price × yield × renovation × monopoly (1.5, 2 Zoning Board) × Slumlord Sal (1.4) × gimmick × events.
+- Own all 16 lots: **Tycoon** (+25 pearls now, +10 at run end). Keep playing for **endless mode**.
 
 ## Rent
-`(3 + day^1.5 × 1.2) × $1,000` per night (Tax Haven −40%, Rent Control −5% per level,
-Umbrella Policy: free on quarter-end days). Day 10 ≈ $41K, day 30 ≈ $200K.
-Gentle enough that compounding property income can outrun it.
+`(3 + day^1.5 × 1.2) × $1,000 × 1.12^(day − 12 if > 0)`, then Tax Haven −40%, Rent Control −5%/level,
+Concerned+ +25%, Twin Aunts +20%. Boss days ×1.5 (Umbrella Policy: free). Endless mode: ×1.35 per day since Tycoon.
+Day 10 ≈ $41K, day 20 ≈ $273K, day 30 ≈ $1.5M.
 
-## Events (one per day, day 1 is always quiet)
-Each event is data with an `fx` object (keys documented above `EVENTS`), so new events need no code.
-- Market: Bull Run (gains ×1.5), Bear Hug (−17 points to rise), Flash Crash (all moves ×2),
-  Solar Flare (all hints are coin flips), SEC Raid (one stock is a fraud, −100%),
-  Margin Call (no buy over 25% of morning cash).
-- Sectors (forced trend, always reported truthfully): Meme Season (MEME ×3), Heat Wave (FOOD ▲),
-  Crypto Winter (CRYPTO ▼), Launch Day (SPACE ▲), Kibble Recall (PETS ▼).
-- Property: Housing Boom (+12%), Rate Hike (−8%), Termites, Tourist Season (Harbor ×2 tonight),
-  Block Party (Suburbs ×2), Blackout (Skyline pays nothing).
-- Money: Aunt Calls (+$25K), Family Reunion (−5% cash), Landlord Vacation (no rent),
-  Rent Hike (rent ×1.5), Dividend Day (listed shares pay 8%).
-
-## Perks (broker, end of each quarter, hold 5)
-Insider Pigeon, Diamond Hands, Meme Lord, Tax Haven, Compound Cat, Contrarian, Lucky Penny,
-Leverage Larry, Doomscroller, Pump Club, Aunt's Pearls, Fortune Cookie, Anchor's Nephew,
-Slumlord Sal, House Flipper, Angel Wings, Day Trader, Hedge Hog, Property Manager, Seed Fund,
-Zoning Board, Ticker Whisperer, Scalper, Rex's Biggest Fan, Umbrella Policy.
-Prices $8K–$15K, rerolls start at $5K.
+## Big numbers
+`fmt`/`fmtK` go K, M, B, T, Qa, Qi, Sx, Sp, Oc, No, Dc, then e-notation. At 1e100 net worth the screen cuts to
+static and Mildred says one line. Infinity prints as `naneinf`.
 
 ## Meta progression (The Will)
-Pearls on death = days − 1 + ⌊3·log2(peak net worth / $100K)⌋ (+10 if Tycoon).
+Pearls on death = (days − 1 + ⌊3·log2(peak / $100K)⌋ + bosses beaten + 10 if Tycoon) × (1 + 0.25 × mood).
 Upgrades: Bigger Allowance, Longer Ticker Tape, Premium Cable, Better Gossip, Broker Friend,
-Old Family Deed, Family Heirloom, Rent Control, Rolodex.
+Old Family Deed, Family Heirloom, Rent Control, Rolodex, Bigger Pockets (start with an Almanac).
+Game over shows the seed, offers **Same seed**, and **Share certificate** (a PNG drawn on canvas; uses the
+share sheet on phones, downloads elsewhere).
 
-## Balance snapshot (`npm run sim`, 400 runs each, naive bots)
-| Strategy | Days p10/med/p90 | Tycoon |
-|---|---|---|
-| Stocks only, 25% | 7 / 9 / 13 | 0% |
-| Balanced, 25% | 9 / 10 / 14 | 0% |
-| Balanced, 50% | 8 / 12 / 23 | 5.3% |
-| Balanced, Max | 6 / 12 / 27 | 4.8% |
+## Balance snapshot (`npm run sim`, 400 runs each, naive bots that buy perks and Almanacs blindly)
+| Strategy | Days p10/med/p90 | Peak NW p90 | Best MULT p90 | Tycoon |
+|---|---|---|---|---|
+| Stocks only, 25% | 6 / 8 / 24 | $2.0M | 15 | 0% |
+| Balanced, 25% | 8 / 10 / 15 | $236K | 7.5 | 3.0% |
+| Balanced, 50% | 8 / 11 / 18 | $588K | 9 | 5.8% |
+| Balanced, Max | 7 / 11 / 24 | $1.8M | 10 | 4.0% |
+| No shop, 25% | 8 / 10 / 14 | $192K | 5 | 0% |
 
-Target: a typical run lasts 8–15 days. Tycoon should take skill, perks and upgrades, and be
-rare. Big-order slippage (v0.5) brought 50%/Max Tycoon rates down from 11–18%.
+Target: a typical run lasts 8–15 days. The tail should be fat: a run whose engine comes together should feel
+broken. The bots don't order perks, use Memos or build toward a hand, so a thinking player should beat them.

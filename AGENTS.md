@@ -3,10 +3,13 @@
 Guidance for AI coding agents (Codex, Claude) working in this repo.
 
 ## What this is
-A mobile-first pixel roguelite. Great Aunt Mildred gives you $100,000. Each in-game day you
-watch a morning finance news show, swipe right/left on made-up stocks, back startups that
-report quarterly, buy real estate that pays nightly, and pay rising rent. Go broke and you earn
-Pearls for permanent upgrades. Own all 16 lots and you become a Tycoon.
+A mobile-first pixel roguelite with a Balatro-style scoring engine. Great Aunt Mildred gives you
+$100,000. Each in-game day you watch a morning finance news show, swipe right/left on stocks from a
+persistent market deck, and at the Closing Bell your gains are multiplied by MULT built from your
+portfolio hand and perks (triggered left to right). Every quarter ends with a Boss Landlord. Back
+startups, buy a procedurally drawn town, use Memos/Almanacs/Envelopes, and pay rising rent. Go broke
+and you earn Pearls for permanent upgrades, new aunts and harder moods. Own all 16 lots to become a
+Tycoon, then keep going in endless mode.
 
 Full rules and current numbers: `docs/DESIGN.md`.
 
@@ -21,10 +24,14 @@ Full rules and current numbers: `docs/DESIGN.md`.
 ## Layout
 ```
 index.html            page shell, fonts
-src/main.js           entry: styles + boot()
-src/game.js           state, day flow, rendering (string templates), input
-src/data/content.js   ALL content and tuning tables (perks, events, lots, news, names...)
-src/util.js           random helpers, money formatting, QUARTER/SIZES/ROUNDS constants
+src/main.js           entry: styles + boot() (dev builds expose the test api as window.gac)
+src/game.js           state, day flow, Closing Bell scoring, shop, consumables, rendering, input
+src/engine/hands.js   which portfolio hands a day's buys qualify for (pure)
+src/engine/perks.js   Closing Bell hooks per perk (card / end), +MULT and xMULT
+src/data/content.js   ALL content and tuning tables (perks, hands, memos, bosses, arcs, districts, aunts...)
+src/util.js           seeded RNG, money + big-number formatting, QUARTER/SIZES/ROUNDS constants
+src/audio.js          WebAudio chiptune blips (unlocked on first tap)
+src/share.js          end-of-run certificate PNG + share sheet
 src/sprites.js        16x16 pixel sprites drawn on canvas (people, buildings)
 src/styles.css        the whole look (tokens at :root)
 scripts/sim.mjs       balance simulator; scripts/strategies.js holds the bot players
@@ -33,13 +40,19 @@ tests/                vitest + jsdom
 
 ## How the code works
 - One mutable `run` object (the current run) and `meta` (saved to localStorage under
-  `greataunt.meta.v1`: pearls, upgrades, bests). `scene` picks the screen.
-- `render()` rebuilds `#app` from template strings for the current `scene`. Buttons use
-  `data-act` attributes, handled by one delegated click listener in the Input section.
-- Day flow: `startDay()` → scene `news` (TV, portfolio, headlines, Rex) → optional `pitch`
-  → `play` (swipe cards) → `resolveDay()` → `resolve` → (`quarter` every 4th day) → `shop`
-  → next `startDay()`. `town` can be opened from most between-day screens.
+  `greataunt.meta.v1`: pearls, upgrades, bests, mood unlocks). `scene` picks the screen.
+- `run.perks` is an ordered list of `{id, ed, st}` slots; always go through `has(id)` / `activePerks()`
+  (they handle the Intern and boss-disabled slots). `run.deck` holds the persistent companies; a day's
+  certificates are `{co, up, hint, ...}` wrappers around them.
+- Today's effects are merged into `run.fx` by `buildFx()` (event + story-arc step + boss). Read them with `fx(key)`.
+- `render()` rebuilds `#app` from template strings for the current `scene`, then appends the perk/consumable
+  sheet (`run.modal`) and starts the Closing Bell animation. Buttons use `data-act` attributes, handled by one
+  delegated click listener in the Input section.
+- Day flow: `startDay()` → scene `news` → optional `pitch` → `play` (swipe cards) → `resolveDay()`
+  (`scoreMoves()` then `closingBell()`) → `resolve` → (`quarter` on boss days) → `shop` (Newsstand / Broker)
+  → next `startDay()`. `town` and `book` (the Ledger) open from most screens.
 - `api` (bottom of game.js) exposes hooks for tests and the sim. `setHeadless(true)` skips rendering.
+- The RNG is seeded per run. Use `R()`/`pick`/`rr`/`shuffle` from util.js, never `Math.random`, in game logic.
 
 ## Conventions
 - Phone first: test layouts at ~380px wide. Max content width 460px. No horizontal scroll.
@@ -51,9 +64,13 @@ tests/                vitest + jsdom
 - When you change balance, paste the before/after `npm run sim` output in the PR description.
 - If you change the shape of `run`, bump `run.v`.
 
+- New perk with scoring? Add the row to `PERKS` and its hook to `PERK_FX`. New boss/arc/event? Data only,
+  reusing the `fx` keys listed above `EVENTS`, `BOSSES` and `ARCS`; add a new key's handling in one place.
+
 ## Backlog (suggested next tasks)
-1. **Tap a headline** to jump to the matching stock or property.
-2. **Sound:** small chiptune blips for buy/pass/closing bell (start audio from a user tap).
+1. **Smarter sim bots** that order perks (+ before x), use Memos and chase a hand, so balance reflects real play.
+2. **Drag to reorder perks** in the HUD (the sheet's Move buttons work today).
 3. **Split `game.js`:** move each scene's render function into `src/ui/scenes/*.js`.
 4. **Save mid-run** to localStorage so closing the browser doesn't end a run.
 5. **PWA:** manifest + icon so it can be added to a phone home screen.
+6. **Booster packs** at the Broker (pick 1 of 3 Memos / Almanacs).
