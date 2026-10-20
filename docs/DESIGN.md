@@ -42,7 +42,7 @@ for each buy, left to right:
     else:       LOSSES += stake x move    (never multiplied)
 for each perk, left to right: its end hook (+MULT or xMULT), then its edition (Embossed +3, Holographic x1.5)
 event: Bull Run x1.5
-PROFIT = GAINS x MULT + LOSSES + cash bonuses (dividends, Scalper, Gold Seal, Hedge Hog)
+PROFIT = GAINS x MULT + LOSSES + cash bonuses (dividends, Order Flow Kickback, Gold Seal, Hedge Hog)
 ```
 Order matters: +MULT perks belong to the left of xMULT perks. The Intern copies the perk to its right.
 Studio heat: MULT 10+ sets the LIVE bug on fire, 100+ speeds up the ticker, 1000+ turns the set red.
@@ -111,31 +111,33 @@ stock bought), Mildred Herself (x1 per 4 days).
 - The last day of every quarter (day 4, 8, 12...). The boss is drawn at the start of the quarter and shown in
   the boss bar under your perks (tap it for details). Boss rent is 1.5x on top of the boss's own effect.
 - Bosses (`BOSSES`): The Goose, The Auditor, Mildred's Birthday, The Shortseller, Blackout Barry,
-  Rex Shouter Himself, The Tax Man, The Hedge Fund Bro, The Margin Clerk, The Wall, The Fortune Teller, The Repo Man.
+  Rex Shouter Himself, The Tax Man, The Hedge Fund Bro, The Margin Clerk, Wall Street, The SEC Investigator, The Repo Man.
 - Final Bosses every 4th quarter (`FINALS`): Mildred's Accountant, The Family Lawyer, The Estranged Cousin, The Executor.
 - Survive: bounty of one night's rent, a free Memo, +1 bosses beaten (Lawn Gnome, pearls).
 
 ## Events and story arcs
 - One event per day (day 1 is quiet, boss days use the boss). Each event is data with `fx` (keys listed above
   `EVENTS`). District events (Tourist Season, Block Party, Blackout) hit a random district of this run's town.
+- Tone: GTA-style satire of finance. Parody insider trading, bailouts, buybacks, lobbying and crypto collapses
+  with invented people and companies only; never name real people or real tickers.
 - **Story arcs** (`ARCS`): from day 3, 14% chance per day to start one you haven't seen this run. 3 steps told
   through the news, each with optional fx: The Goose Lawsuit (branching verdict), Rex's Comeback Tour,
   First Contact (adds ALIEN), The Bee Situation (adds BEES), Mildred's Cruise, The Great Pickle Heist,
-  The Toaster Uprising.
+  The Toaster Uprising, The Senator's Portfolio, The Pump and Dump, The Exchange Collapse (branching verdict).
 
 ## Real estate (procedural town)
 - Each run draws 4 of 8 districts (`DISTRICT_POOL`). District slot sets the price tier ($15K to $20M, yields 16%
   down to 12% per night). Each district is tied to a stock sector (Vertical Integration: +1 MULT per lot).
 - Gimmicks: Casino Strip (0–3x nightly), Moon Base (monopoly 2.5x), Goose Sanctuary (1.5x, can't sell),
   Mega Mall (2.5x on boss days). The other four are plain.
-- Nightly income = price × yield × monopoly (1.5, 2 Zoning Board) × Slumlord Sal (1.4) × gimmick × events.
+- Nightly income = price × yield × monopoly (1.5, 2 Bribed Zoning Board) × Slumlord Sal (1.4) × gimmick × events.
   Lots are worth their price; sell for 95% (House Flipper 120%). A lot you sell is off the market until
   tomorrow, so profitable flips require time. v0.7 cut renovation, termites and the housing index.
 - Own all 16 lots: **Tycoon** (+25 pearls now, +10 at run end). Keep playing for **endless mode**.
 
 ## Rent
 `(3 + day^1.5 × 1.2) × $1,000 × 1.12^(day − 12 if > 0)`, then Tax Haven −40%, Rent Control −5%/level,
-Concerned+ +25%, Twin Aunts +20%. Boss days ×1.5 (Umbrella Policy: free). Endless mode: ×1.35 per day since Tycoon.
+Concerned+ +25%, Twin Aunts +20%. Boss days ×1.5 (Golden Parachute: free). Endless mode: ×1.35 per day since Tycoon.
 Day 10 ≈ $41K, day 20 ≈ $273K, day 30 ≈ $1.5M.
 
 ## Big numbers
