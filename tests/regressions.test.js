@@ -195,3 +195,18 @@ describe('strategic simulation',()=>{
     }
   });
 });
+
+describe('celebration bookkeeping',()=>{
+  it('stamps every day, celebrates each wealth rung once and never draws from the game RNG',()=>{
+    const r=fresh('CELEBRATE');r.cash=1.3e6;finish();
+    const first=r.result.rungs;expect(first).toContain('Millionaire');expect(r.result.tier).toBeTruthy();
+    expect(r.nwHist.length).toBe(2);expect(api.meta.topRung).toBe(r.rung);
+    api.startDay();r.cash=1.4e6;finish();expect(r.result.rungs).toBeUndefined();
+    show('resolve');expect(document.getElementById('verdict').textContent).toBeTruthy();
+    expect(document.getElementById('ladder')).not.toBeNull();
+  });
+  it('leaves the seeded market identical whether or not anything is celebrated',()=>{
+    const run=cash=>{const r=fresh('SAME-MARKET');r.cash=cash;finish();api.startDay();return [rngState(),r.hand.map(c=>c.co.tick).join()]};
+    expect(run(100000)).toEqual(run(5e9));
+  });
+});

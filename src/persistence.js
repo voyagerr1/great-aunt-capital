@@ -1,7 +1,7 @@
 // One atomic localStorage entry holds progression and the last playable checkpoint.
 // JSON duplicates company objects; reconnect hand certificates to their deck owners on load.
 export const SAVE_KEY='greataunt.meta.v1';
-export const RUN_VERSION=12;
+export const RUN_VERSION=13;
 const SCENES=new Set(['news','play','resolve','shop','town','tycoon','richest','ascend']);
 const ORIGINS=new Set(['news','play','resolve','shop']);
 export function checkpoint(run,scene,shop,rng){

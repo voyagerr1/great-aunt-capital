@@ -2,17 +2,19 @@
 import { R, pick, rr, clamp, shuffle, fmt, fmtK, fmtM, QUARTER, SIZES, seedRng, makeSeed, rngState, restoreRng, escapeHTML } from './util.js';
 import { SAVE_KEY as KEY, RUN_VERSION, checkpoint, readCheckpoint } from './persistence.js';
 import { VOL, SECTORS, S, N1, N2, N3, BULL, BEAR, NEWS, FLUFF, REX_BUY, REX_SELL, REX_REACT, PERKS, P, RARITY, PERK_EDS, HANDS, H, MEMOS, ENVELOPES, ENH, SEALS,
-  DISTRICT_POOL, buildLots, EVENTS, BOSS_RENT, BOSSES, FINALS, ARCS, EDITIONS, DEPTH, AUNTS, MOODS, UPGRADES, RICHEST, RICHEST_PEARLS } from './data/content.js';
+  DISTRICT_POOL, buildLots, EVENTS, BOSS_RENT, BOSSES, FINALS, ARCS, EDITIONS, DEPTH, AUNTS, MOODS, UPGRADES, RICHEST, RICHEST_PEARLS,
+  RUNGS, VERDICTS, STREAK_LINES, CLOSE_CALL } from './data/content.js';
 import { qualifying } from './engine/hands.js';
 import { PERK_FX } from './engine/perks.js';
 import { sprite, bldg } from './sprites.js';
-import { sfx, unlock, setMuted } from './audio.js';
+import { sfx, unlock, setMuted, buzz } from './audio.js';
+import { countUp, popAt, burst, kick, windowFx, cascade, later, cancelJuice, motionOK } from './juice.js';
 import { shareCertificate } from './share.js';
 
 /* ===== State ===== */
 function loadMeta(){let m=null;try{m=JSON.parse(localStorage.getItem(KEY))}catch(e){}
   const base={pearls:0,up:{allowance:0,hand:0,accuracy:0,discount:0,starter:0,cable:0,deed:0,rentctl:0,pocket:0},best:0,bestCash:0,runs:0,
-    mood:0,mono:0,tycoons:0,richest:0,mute:0,daily:null,bestDay:null};
+    mood:0,mono:0,tycoons:0,richest:0,mute:0,daily:null,bestDay:null,topRung:-1};
   if(m&&typeof m==='object'){base.up=Object.assign(base.up,m.up||{});delete m.up;delete m.checkpoint;Object.assign(base,m)} return base;}
 // Mutations finish at render(), where meta and run are saved together, once.
 function saveSession(){
@@ -110,6 +112,14 @@ const sellPrice=id=>propVal(id)*(has('flipper')?1.2:.95);
 const lotsIn=sec=>Object.keys(run.props).filter(id=>D(L(id).dist).sec===sec).length;
 const netWorth=()=>run.cash+propTotal();
 function snapshot(){return {nw:netWorth(),cash:run.cash,prop:propTotal()}}
+/* Wealth ladder. rungAt is the highest rung a net worth has passed; ladderPos places it between rungs on a log scale,
+   so every doubling moves the bar the same distance. */
+const rungAt=nw=>{let i=-1;RUNGS.forEach((r,k)=>{if(nw>=r.at)i=k});return i};
+function ladderPos(nw){
+  const i=rungAt(nw),next=RUNGS[i+1];if(!next)return {next:null,p:1,i};
+  const lo=i>=0?RUNGS[i].at:nw<1e5?1e4:1e5,p=clamp(Math.log(Math.max(nw,1)/lo)/Math.log(next.at/lo),0,1);
+  return {next,p,i};
+}
 function buyLot(id){
   const l=L(id);if(!l)return false;
   const pr=lotPrice(l); if(run.props[id]||run.cash<=pr||run.soldLots[id]===run.day) return false;
@@ -168,14 +178,14 @@ function newRun(o={}){
   run={v:RUN_VERSION,seed,daily:o.daily||null,aunt,mood,day:0,resolvedDay:0,soldLots:{},cash:100000+25000*meta.up.allowance-(mood>=4?50000:0),peak:0,perks:[],cons:[],consMax:aunt==='twins'?3:2,
     streak:0,reroll:5000,size:.25,props:{},town,lots:buildLots(town),deck:[],coId:0,
     hands:Object.fromEntries(HANDS.map(h=>[h.id,{lvl:1,played:0}])),sold:0,bought:0,bossesBeat:0,closes:0,arc:null,arcsDone:[],ring:0,pumped:null,
-    sectors:SECTORS.filter(s=>!s.hidden).map(s=>s.id),heat:0,best:null,modal:null,log:[]};
+    sectors:SECTORS.filter(s=>!s.hidden).map(s=>s.id),heat:0,best:null,modal:null,log:[],red:0,nwHist:[],rung:-1};
   if(aunt==='gloria'){run.cash=25000;run.props[run.lots[4].id]={day:0}}
   if(aunt==='ruth') run.cash=10000+Math.round(Math.min(1e6,meta.bestCash*.1));
   if(meta.up.deed) run.props[run.lots[0].id]={day:0};
   if(meta.up.starter) run.perks.push(newPerk(pick(PERKS.filter(p=>p.r==='c')).id));
   if(meta.up.pocket) run.cons.push({k:'alm',id:pick(HANDS).id});
   buildDeck();
-  run.start=run.cash; run.peak=run.cash; meta.runs++; startDay();
+  run.start=run.cash; run.peak=run.cash; run.nwHist=[netWorth()]; run.rung=rungAt(netWorth()); meta.runs++; startDay();
 }
 function startDay(eventOverride=null){
   run.day++; const d=run.day;
@@ -257,10 +267,14 @@ function choose(buy){
   const c=run.hand[run.idx]; if(!c) return;
   const intent=tradeIntent(c,buy);buy=intent.buy;
   if(intent.message)toast(intent.message);
+  const before=headless||!buy?null:bestHand(run.hand.filter(x=>x.bought));
   if(buy){const o=lot(c);run.cash-=o.cost;c.stake=o.cost;c.shares=o.sh}
   c.bought=buy; if(buy) run.bought++; run.idx++;
+  // Building a better hand is its own small win.
+  if(buy&&!headless&&!fx('noHand')){const after=bestHand(run.hand.filter(x=>x.bought));
+    if(after&&handMult(after)>(before?handMult(before):1)){handPop=`${H(after).name} ×${fmtM(handMult(after))}`;sfx.handUp()}}
   if(!headless)lastTrade={day:run.day,idx:run.idx,text:buy?`Bought ${c.shares.toLocaleString('en-US')} ${c.co.tick} for ${fmtK(c.stake)}.`:`Passed ${c.co.tick}. Cash kept.`};
-  if(!headless) (buy?sfx.buy:sfx.pass)();
+  if(!headless&&!handPop) (buy?sfx.buy:sfx.pass)();
   if(run.idx>=run.hand.length) resolveDay(); else render();
 }
 // One read-only decision path keeps the preview and the executed order consistent.
@@ -373,11 +387,13 @@ function resolveDay(){
     if(run.cons.length<run.consMax){const m=pick(MEMOS);run.cons.push({k:'memo',id:m.id});run.result.prize=m.name}
     if(isFinal(run.day)&&meta.mood<4&&run.mood>=meta.mood){meta.mood=run.mood+1;run.result.moodUp=MOODS[meta.mood].name}
   }
+  const prevBest=run.best?run.best.total:null, prevAll=meta.bestDay?meta.bestDay.total:null;
   run.heat=cb.mult>=1000?3:cb.mult>=100?2:cb.mult>=10?1:0;
   if(!run.best||cb.total>run.best.total) run.best={total:cb.total,mult:cb.mult,hand:cb.hand?H(cb.hand).name:'No hand',day:run.day};
   if(!meta.bestDay||cb.total>meta.bestDay.total){meta.bestDay={total:cb.total,mult:cb.mult,hand:run.best.hand}}
   run.peak=Math.max(run.peak,netWorth());
   run.dead=run.cash<=0;
+  celebrate(run.result,net,rent,prevBest,prevAll);
   run.resolvedDay=run.day;run.result.reaction=rexReaction(run.result);
   if(run.dead) endRun();
   run.modal=null; scene='resolve';
@@ -385,7 +401,24 @@ function resolveDay(){
   else if(!run.dead&&!run.ascended&&netWorth()>=1e100){run.ascended=true;scene='ascend'}
   render();
 }
+// Closing Bell bookkeeping for the celebration: verdict, records, streaks and wealth-ladder rungs. Moves no money.
+function celebrate(res,net,rent,prevBest,prevAll){
+  const nw=netWorth(), d=run.day+1;
+  run.red=net<0?run.red+1:0;
+  run.nwHist=[...run.nwHist,nw].slice(-120);
+  Object.assign(res,{fromCash:run.dayStart,fromNw:run.snap.nw,nw});
+  res.record=prevBest!==null&&prevBest>0&&res.total>prevBest;
+  res.allTime=prevAll!==null&&prevAll>0&&res.total>prevAll;
+  res.tier=run.dead?'broke':res.bounty?'boss':res.record?'record':net>3*rent?'great':net>0?'good':net===0?'flat':net>-rent?'red':'bloodbath';
+  const streak=(kind,n)=>n>=3?{kind,n,line:STREAK_LINES[kind][(n-3)%STREAK_LINES[kind].length]}:null;
+  res.streak=run.dead?null:streak('green',run.streak)||streak('red',run.red);
+  res.close=!run.dead&&run.cash<rentFor(d)*(isBoss(d)?BOSS_RENT:1);
+  if(run.dead)return;
+  const i=rungAt(nw);
+  if(i>run.rung){const got=RUNGS.slice(run.rung+1,i+1).filter(r=>!r.silent);if(got.length)res.rungs=got.map(r=>r.name);run.rung=i;meta.topRung=Math.max(meta.topRung??-1,i)}
+}
 function endRun(){
+  run.records={days:meta.runs>1&&run.day>meta.best,peak:meta.runs>1&&run.peak>meta.bestCash};
   run.earned=Math.max(1,Math.round(((run.day-1)+Math.max(0,Math.floor(3*Math.log2(run.peak/100000)))+run.bossesBeat+(run.tycoon?10:0))*(1+.25*run.mood)));
   meta.pearls+=run.earned; meta.best=Math.max(meta.best,run.day); meta.bestCash=Math.max(meta.bestCash,run.peak);
   if(run.daily){if(!meta.daily||meta.daily.date!==run.daily)meta.daily={date:run.daily,best:0};meta.daily.best=Math.max(meta.daily.best,run.day)}
@@ -425,8 +458,8 @@ function buyOffer(i){
   if(o.t==='perk'&&!slotFree()&&o.ed!=='fake'){toast('No free perk slot. Sell one first.');return false}
   if(o.t==='cons'&&run.cons.length>=run.consMax){toast('Your pockets are full.');return false}
   run.cash-=o.price; o.sold=true;
-  if(o.t==='perk') run.perks.push(newPerk(o.id,o.ed)); else run.cons.push({k:o.k,id:o.id});
-  if(!headless){sfx.cash();toast(`${o.t==='perk'?P(o.id).name:consName({k:o.k,id:o.id})} purchased. Open Inventory ${o.t==='perk'?'to arrange perks.':'to use it.'}`)} render(); return true;
+  if(o.t==='perk'){run.perks.push(newPerk(o.id,o.ed));freshSlot=run.perks.length-1} else run.cons.push({k:o.k,id:o.id});
+  if(!headless){(o.t==='perk'?sfx.newPerk:sfx.cash)();toast(`${o.t==='perk'?P(o.id).name:consName({k:o.k,id:o.id})} purchased. Open Inventory ${o.t==='perk'?'to arrange perks.':'to use it.'}`)} render(); return true;
 }
 function sellPerk(i){const p=run.perks[i];if(!p)return;const v=sellVal(p);run.cash+=v;run.perks.splice(i,1);run.sold++;run.modal=null;toast(`Sold ${P(p.id).name} for ${fmt(v)}.`);render()}
 function movePerk(i,d){const j=i+d;if(j<0||j>=run.perks.length)return;[run.perks[i],run.perks[j]]=[run.perks[j],run.perks[i]];run.modal={kind:'perk',i:j};render()}
@@ -441,7 +474,7 @@ function useCons(i){
   const k=run.cons[i]; if(!k) return false;
   const ok=k.k==='alm'?useAlm(k.id):k.k==='memo'?useMemo(k.id):useEnv(k.id);
   if(!ok) return false;
-  run.cons.splice(i,1); run.modal=null; if(!headless) sfx.use();
+  run.cons.splice(i,1); run.modal=null; if(!headless) (k.k==='alm'?sfx.levelUp:sfx.use)();
   if(ok==='pass') choose(false); else render();
   return true;
 }
@@ -480,7 +513,7 @@ function useEnv(id){
 /* ===== Render ===== */
 const app=typeof document!=='undefined'?document.getElementById('app'):null;
 let headless=!app;   // sims turn rendering off for speed
-let lastTrade=null, finishTally=null, pendingStart=null;
+let lastTrade=null, finishTally=null, pendingStart=null, freshSlot=null, handPop=null;
 function requestRun(options){if(hasResume()){pendingStart=options;render()}else newRun(options)}
 const secChip=id=>`<span class="sec" style="background:${S(id).c}">${id}</span>`;
 // Stock-app bits: a move like "▲ 4.2%" and a sparkline of closes, with a dotted line at the first close.
@@ -494,6 +527,14 @@ const lastClose=()=>Math.max(0,...run.deck.map(c=>c.lastDay||0));
 const lotCount=()=>Object.keys(run.props).length;
 // One-line coaching for a player's first run.
 const tip=txt=>meta.runs<=1&&run.day<=1?`<div class="tip">${txt}</div>`:'';
+// Wealth ladder bar: the next milestone and how far along the way to it your net worth is.
+function ladderHTML(nw,id='ladder'){
+  const L0=ladderPos(nw);
+  if(!L0.next)return `<div class="ladder" id="${id}"><div class="ladder-text"><span class="lbl">Wealth ladder</span><b>Top rung: ${RUNGS[L0.i].name}</b></div><div class="ladder-bar"><i style="width:100%"></i></div></div>`;
+  return `<div class="ladder" id="${id}" data-nw="${nw}"><div class="ladder-text"><span class="lbl">Next milestone</span><b>${L0.next.name}</b><span class="tab">${fmtK(nw)} / ${fmtK(L0.next.at)}</span></div><div class="ladder-bar" role="progressbar" aria-label="Progress to ${L0.next.name}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(L0.p*100)}"><i style="width:${(L0.p*100).toFixed(1)}%"></i></div></div>`;
+}
+function ladderMini(){const L0=ladderPos(netWorth());
+  return `<span class="ladder-mini" title="${L0.next?`Next milestone: ${L0.next.name} at ${fmtK(L0.next.at)}`:'Top of the wealth ladder'}"><i style="width:${(L0.p*100).toFixed(1)}%"></i></span>`}
 // Top of every in-run screen: money, perk and item slots, this quarter's boss and the Hands list.
 function hud(){
   const settled=run.resolvedDay===run.day,rent=settled?run.result.rent:rentTonight(),boss=isBoss(run.day),cleared=boss&&settled&&!run.dead;
@@ -502,7 +543,7 @@ function hud(){
   const cons=run.cons.map((k,i)=>`<button class="slot cons k-${k.k}" data-act="cons" data-i="${i}" role="button" aria-label="${consName(k)}"><span>${consCode(k)}</span><span class="slot-name">${consName(k)}</span></button>`);
   const B=run.boss, bd=nextBossDay(run.day), phase=scene==='town'?run.back:scene, stages=[['news','News'],['play','Trade'],['resolve','Results'],['shop','Shop']];
   return `<aside class="account-window"><div class="window-heading">Account overview</div><div class="hud">
-    <div class="cash"><div class="lbl">Cash</div><div class="val tab">${fmt(run.cash)}</div></div>
+    <div class="cash"><div class="lbl">Cash</div><div class="val tab" id="hudCash">${fmt(scene==='resolve'&&run.result&&!run.result.shown&&run.result.fromCash!==undefined?run.result.fromCash:run.cash)}</div>${ladderMini()}</div>
     <div class="day"><div class="lbl">Day · Q${Math.ceil(run.day/QUARTER)}</div><div class="val tab">${run.day}</div></div>
     <div class="rent ${settled&&!run.dead?'paid':boss?'boss':''}"><div class="lbl">${settled?(run.dead?'Final rent':rent?'Rent paid':'Rent waived'):boss?'Boss rent':'Rent tonight'}</div><div class="val tab">${fmtK(rent)}</div></div>
   </div>
@@ -569,6 +610,11 @@ function modalHTML(){
       <div class="n d">${B.name}</div><div>${B.txt}</div>
       <div class="muted" style="font-size:19px">The last day of every quarter is a boss day, and rent is ${BOSS_RENT}x. Survive it for a bounty and a free Memo, then visit the Broker to buy perks. Every 4th quarter is a Final Boss.</div>`);
   }
+  if(m.kind==='rung'){const r=run.result,top=RUNGS[run.rung],more=r.rungs.length-1,R0=RUNGS.find(x=>x.name===r.rungs.at(-1))||top;
+    return sheet(`<div class="rung-box"><div class="rung-icon" aria-hidden="true">$</div><div><div class="lbl">Milestone reached${more?` · and ${more} more`:''}</div><div class="rung-name">${R0.name}</div><div>${R0.txt}</div></div></div>
+      <div class="rung-list">${RUNGS.map((x,k)=>`<div class="${k<=run.rung?'got':''} ${x===R0?'now':''}"><span>${k<=run.rung?'■':'□'} ${x.name}</span><span class="tab">${fmtK(x.at)}</span></div>`).join('')}</div>
+      <div class="muted">Net worth ${fmt(r.nw)}. ${ladderPos(r.nw).next?`Next: ${ladderPos(r.nw).next.name}.`:''}</div>
+      <button class="primary" data-act="closemodal">Keep climbing</button>`,false)}
   if(m.kind==='perk'){const p=run.perks[m.i]; if(!p) return ''; const d=P(p.id),e=PERK_EDS[p.ed],st=perkState(p);
     return sheet(`<div class="row"><div class="ico" style="background:${d.c}">${d.code}</div><div><div class="n d">${d.name}</div><div class="lbl" style="background:${RARITY[d.r].c};color:var(--ink);padding:2px 4px">${RARITY[d.r].name}${e?` · ${e.name}: ${e.txt}`:''}</div></div></div>
       <div>${d.desc}</div>${st?`<div class="yel">${st}</div>`:''}${p.disabled?'<div class="down">Disabled by the Boss Landlord today.</div>':''}
@@ -618,6 +664,8 @@ function portfolioBox(){
     <div class="row between"><span class="lbl">Net worth</span>${P0?`<span class="tab ${dv>=0?'up':'down'}">${dv>=0?'▲ +':'▼ -'}${fmtK(Math.abs(dv))} since yesterday</span>`:''}</div>
     <div class="nw tab">${fmt(S0.nw)}</div>
     <div class="muted" style="font-size:19px">Cash ${fmtK(S0.cash)}${n?` · ${n} lot${n>1?'s':''} worth ${fmtK(S0.prop)}, paying +${fmtK(totalInc())} a night`:''}</div>
+    ${run.nwHist.length>1?`<figure class="growth">${sparkSVG(run.nwHist,'growth-line')}<figcaption>Net worth, day 0 to today · peak ${fmtK(run.peak)}</figcaption></figure>`:''}
+    ${ladderHTML(S0.nw,'newsLadder')}
   </div>`;
 }
 function propPanel(id){
@@ -666,7 +714,7 @@ function stepHTML(s){
     :s.k==='cash'?`<span></span><span class="up">+${fmtK(s.v)}</span>`
     :s.k==='hand'?`<span class="muted">lvl ${s.lvl}</span><span class="mlt">${fmtM(s.v)} MULT</span>`:'<span></span><span></span>';
   const who=s.k==='hand'?`<b>${s.who}</b>${s.boss?' <span class="down">(Hedge Fund Bro)</span>':''}`:s.k==='card'||s.k==='loss'?`<span class="t">${s.who}</span>${s.again?' <span class="yel">AGAIN</span>':''}`:`${s.tick?`<span class="t">${s.tick}</span> `:''}${s.who}`;
-  return `<div class="st show k-${s.k}" data-k="${s.k}" data-g="${s.g}" data-m="${s.m}"><span class="w">${who}</span>${v}</div>`;
+  return `<div class="st show k-${s.k}" data-k="${s.k}" data-g="${s.g}" data-m="${s.m}" data-v="${s.v??0}"><span class="w">${who}</span>${v}</div>`;
 }
 function rexReaction(r){
   const k=r.net>3*r.rent?'great':r.net>0?'good':r.net>-r.rent?'bad':'awful';
@@ -675,11 +723,14 @@ function rexReaction(r){
 }
 let tallyT=null;
 function shake(){if(!app)return;app.classList.remove('shake');void app.offsetWidth;app.classList.add('shake')}
+const heatOf=m=>m>=1000?3:m>=100?2:m>=10?1:0;
+const HEAT_POP=['','MULT 10+','MULT 100+','MULT 1000+'];
 function animateTally(){
   const box=document.getElementById('tally'); if(!box) return;
   const rows=[...box.querySelectorAll('.st')], steps=document.getElementById('steps'), tP=document.getElementById('tP'), tG=document.getElementById('tG'), tM=document.getElementById('tM'), r=run.result;
+  const board=document.getElementById('board');
   const reduce=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let i=0;
+  let i=0, heat=0, shownProfit=0;
   const finish=()=>{if(finishTally!==finish)return;finishTally=null;clearTimeout(tallyT);tallyT=null;rows.forEach(x=>{x.classList.add('show');x.classList.remove('is-current')});if(steps)steps.scrollTop=0;
     tG.textContent=fmtK(r.gains);tM.textContent=fmtM(r.mult);if(tP)tP.textContent=fmtK(r.gains*r.mult);r.shown=true;box.onclick=null;
     const summary=document.getElementById('settlementSummary');if(summary)summary.hidden=false;
@@ -687,10 +738,10 @@ function animateTally(){
     const skip=document.querySelector('[data-act="finishtally"]');if(skip)skip.hidden=true;
     const full=document.querySelector('[data-act="statement"]');if(full)full.hidden=false;
     app.querySelectorAll('.slot.is-triggering').forEach(el=>el.classList.remove('is-triggering'));
-    const board=document.getElementById('board');if(board)board.className=`board box heat${run.heat}`;
+    if(board)board.className=`board box heat${run.heat}`;
     const progress=document.getElementById('calculationProgress');if(progress)progress.value=1;
-    sfx.settle(run.dead?'loss':r.net>=r.rent?'win':'quiet');
     if(!reduce&&run.heat>=2&&!run.dead){board?.classList.add('settlement-pop')}
+    payoff(shownProfit);
   };
   finishTally=finish;
   if(reduce||!rows.length){finish();return}
@@ -700,14 +751,65 @@ function animateTally(){
     const row=rows[i];rows.forEach(x=>x.classList.remove('is-current'));row.classList.add('show','is-current'); if(steps){const lo=row.offsetTop+row.offsetHeight-steps.clientHeight;if(row.offsetTop<steps.scrollTop)steps.scrollTop=row.offsetTop;else if(lo>steps.scrollTop)steps.scrollTop=lo}
     const state=document.getElementById('tallyState');if(state)state.textContent=`Calculating ${i+1}/${rows.length} · ${row.querySelector('.w').textContent}`;
     app.querySelectorAll('.slot.on').forEach(el=>el.classList.toggle('is-triggering',row.querySelector('.w').textContent.includes(P(run.perks[+el.dataset.i].id).name)));
-    tG.textContent=fmtK(+row.dataset.g); tM.textContent=fmtM(+row.dataset.m); if(tP)tP.textContent=fmtK(+row.dataset.g*+row.dataset.m);
-    const k=row.dataset.k;
-    if(k==='x'){sfx.x();tM.classList.remove('pulse');void tM.offsetWidth;tM.classList.add('pulse')}
-    else if(k==='add'||k==='hand') sfx.mult(i); else if(k==='loss') sfx.loss(); else if(k==='cash') sfx.cash(); else sfx.step(i);
+    const g=+row.dataset.g, m=+row.dataset.m, v=+row.dataset.v, k=row.dataset.k;
+    tG.textContent=fmtK(g); tM.textContent=fmtM(m); shownProfit=g*m; if(tP)tP.textContent=fmtK(shownProfit);
+    if(k==='x'){sfx.x();kick(tM,'pulse');popAt(tM,'×'+fmtM(v),'xmult');kick(board,'jolt')}
+    else if(k==='add'||k==='hand'){sfx.mult(i);kick(tM,'pulse');popAt(tM,(k==='hand'?'':'+')+fmtM(v),'mult')}
+    else if(k==='loss'){sfx.loss();popAt(tG,fmtK(v),'loss');kick(board,'jolt-loss')}
+    else if(k==='cash'){sfx.cash();popAt(tP||tG,'+'+fmtK(v),'gain')}
+    else if(k==='card'){sfx.step(i);popAt(tG,'+'+fmtK(v),'gain');kick(tG,'pulse')}
+    else sfx.step(i);
+    // MULT crossing 10, 100 or 1000 heats the board up on the spot.
+    const h=heatOf(m);if(h>heat&&board){heat=h;board.className=`board box heat${h}`;kick(board,'heat-up');sfx.heat(h);popAt(tM,HEAT_POP[h],'heat');buzz(15*h)}
     i++;const progress=document.getElementById('calculationProgress');if(progress)progress.value=i/rows.length;
     tallyT=setTimeout(step,Math.max(70,340-i*16));
   };
   tallyT=setTimeout(step,250);
+}
+/* The payoff after the tally: profit counts up, the verdict stamp slams down, money (or red arrows) flies,
+   the account cash rolls to its new total and the wealth ladder fills. Wins and losses get equal ceremony. */
+const TIER_FX={
+  record:{bills:30,flash:1,glow:'win',buzz:[30,40,30,40,60],cascade:1},boss:{bills:24,flash:1,glow:'win',buzz:[40,40,80],cascade:1},
+  great:{bills:18,flash:1,glow:'win',buzz:[30,30,50]},good:{bills:8,buzz:20},flat:{},
+  red:{arrows:8,shake:1,buzz:60},bloodbath:{arrows:18,shake:1,glow:'loss',hung:1,buzz:[120,60,160]},broke:{arrows:26,shake:1,glow:'loss',hung:1,buzz:[200,80,300]},
+};
+function payoff(fromProfit){
+  const r=run.result, T=TIER_FX[r.tier]||{}, profit=r.gains*r.mult;
+  const tP=document.getElementById('tP'), stamp=document.getElementById('verdict'), cash=document.getElementById('hudCash'), board=document.getElementById('board');
+  const ok=motionOK(), count=ok?Math.min(900,350+Math.log10(Math.max(10,profit))*60):0;
+  if(tP&&profit>fromProfit)countUp(tP,fromProfit,profit,count,fmtK,k=>sfx.tick(Math.round(k*12)));
+  later(()=>{
+    stamp?.classList.remove('is-waiting');kick(stamp,'slam');
+    sfx.verdict(r.tier);if(T.buzz)buzz(T.buzz);
+    if(T.bills){burst(tP||board,T.bills,'bills');sfx.coins(T.bills/2)}
+    if(T.arrows)burst(board,T.arrows,'arrows');
+    if(T.shake)shake();
+    if(T.glow)kick(document.getElementById('settlementSummary'),'glow-'+T.glow);
+    if(T.flash)windowFx('flash');
+    if(T.hung)windowFx('hung');
+    if(r.record&&r.tier!=='record')later(sfx.record,500);
+    if(cash)countUp(cash,r.fromCash,Math.max(0,run.cash),ok?700:0,fmt);
+    animateLadder(r);
+    if(T.cascade)later(()=>cascade({from:'#board .bl',labels:[fmtK(profit).replace('$','')]}),900);
+  },count);
+  if(r.rungs&&!r.rungSeen)later(()=>{if(scene==='resolve'&&!run.modal&&run.result===r)openRung()},count+(ok?1500:0));
+}
+// The ladder bar slides from this morning's net worth to tonight's. Crossing a rung fills it, flashes, then starts the next.
+function animateLadder(r){
+  const el=document.getElementById('ladder');if(!el||run.dead)return;
+  const bar=el.querySelector('.ladder-bar i'), next=ladderPos(r.nw), crossed=r.rungs||ladderPos(r.fromNw).i!==next.i;
+  if(!bar)return;
+  el.classList.toggle('is-draining',r.nw<r.fromNw);
+  if(!crossed){bar.style.width=(next.p*100).toFixed(1)+'%';return}
+  bar.style.width='100%';
+  later(()=>{const fresh=document.createElement('div');fresh.innerHTML=ladderHTML(r.nw);const n=fresh.firstElementChild;el.replaceWith(n);kick(n,'rung-up');
+    const nb=n.querySelector('.ladder-bar i');if(nb&&motionOK()){const w=nb.style.width;nb.style.width='0';void nb.offsetWidth;nb.style.width=w}},motionOK()?800:0);
+}
+function openRung(){
+  const r=run.result;if(!r?.rungs||r.rungSeen)return;
+  r.rungSeen=true;run.modal={kind:'rung'};render();
+  sfx.rung();buzz([40,40,40,40,120]);
+  later(()=>cascade({from:'.rung-box .rung-name',labels:[fmtK(r.nw).replace('$','')]}),250);
 }
 let modalOpener=null;
 const focusKey=el=>el?.dataset?.act?{act:el.dataset.act,i:el.dataset.i,id:el.dataset.id,z:el.dataset.z,d:el.dataset.d}:null;
@@ -717,11 +819,12 @@ function render(){
   const focused=focusKey(document.activeElement), hadModal=!!app.querySelector('.modal');
   if((run?.modal||pendingStart)&&!hadModal)modalOpener=focused;
   const saved=saveSession();
+  cancelJuice();
   if(tallyT){clearTimeout(tallyT);tallyT=null;if(run&&run.result)run.result.shown=true}finishTally=null;
   const previousScene=app.dataset.scene;
   renderScene();
   app.dataset.scene=scene;
-  if(previousScene!==scene)app.scrollTop=0;
+  if(previousScene!==scene){app.scrollTop=0;sceneEnter()}
   const captions={title:'Welcome',setup:'New account',help:'Help contents',will:'The will',news:'Market Mail',play:'Market.exe',resolve:'Closing Bell.xls',shop:'Broker catalog',town:'Property Explorer',tycoon:'Account milestone',richest:'Account milestone',ascend:'Account milestone',over:'Account closed'};
   const caption=document.getElementById('window-caption'), status=document.getElementById('desktop-status');
   if(caption)caption.textContent=captions[scene]||'Personal finance';
@@ -729,6 +832,10 @@ function render(){
   if(run&&run.modal&&['news','play','resolve','shop','town'].includes(scene)) app.insertAdjacentHTML('beforeend',modalHTML());
   if(pendingStart)app.insertAdjacentHTML('beforeend',sheet('<div class="n d">Replace your saved run?</div><div>Your current day and investments will be replaced. Pearls and permanent upgrades stay.</div><button class="red" data-act="replacestart">Replace saved run</button><button data-act="closemodal">Keep saved run</button>',false));
   if(scene==='resolve'&&!run.result.shown) animateTally();
+  // A milestone reached tonight still gets its dialog if the player moved on before it opened.
+  else if(run?.result?.rungs&&!run.result.rungSeen&&!run.modal&&['resolve','shop','town'].includes(scene)&&run.resolvedDay===run.day)later(openRung,scene==='resolve'?500:0);
+  if(freshSlot!==null){const s=app.querySelector(`.slot.on[data-i="${freshSlot}"]`);if(s)kick(s,'slot-new');freshSlot=null}
+  if(handPop){const h=scene==='play'&&app.querySelector('.handline');if(h){kick(h,'hand-pop');popAt(h,handPop,'mult')}handPop=null}
   if(!saved)app.insertAdjacentHTML('beforeend','<div class="tip" role="status">Could not save. Keep this tab open.</div>');
   const modal=app.querySelector('.modal');
   if(modal){for(const child of app.children)if(child!==modal)child.inert=true;(hadModal&&focusMatch(focused,modal)||modal.querySelector('.sheet>button:last-child'))?.focus()}
@@ -736,6 +843,14 @@ function render(){
   else focusMatch(focused)?.focus();
 }
 const pctOf=a=>Math.round(a*100)+'%';
+// One-time ceremony when a big screen opens: the money cascade for milestones, the pearl count on the way out.
+function sceneEnter(){
+  if(['tycoon','richest','ascend'].includes(scene)){sfx.verdict('record');buzz([40,40,40,40,160]);later(()=>cascade({from:'.logo',count:40,labels:[fmtK(netWorth()).replace('$','')]}),350)}
+  if(scene==='over'&&run){
+    const p=document.getElementById('pearlCount');if(p)countUp(p,0,run.earned,motionOK()?900:0,n=>'+'+Math.round(n),k=>sfx.tick(Math.round(k*16)));
+    if(run.records?.days||run.records?.peak)later(()=>{sfx.record();app.querySelectorAll('.record-badge').forEach(b=>kick(b,'slam'))},950);
+  }
+}
 function renderScene(){
   if(scene==='title'){
     const today=dailyId();
@@ -747,6 +862,7 @@ function renderScene(){
       <div class="row between"><span class="muted">Pearls</span><span class="yel tab">${meta.pearls}</span></div>
       <div class="row between"><span class="muted">Longest run</span><span class="tab">${meta.best?meta.best+' days':'none yet'}</span></div>
       <div class="row between"><span class="muted">Peak net worth</span><span class="tab">${meta.bestCash?fmt(meta.bestCash):'none yet'}</span></div>
+      ${meta.topRung>=0?`<div class="row between"><span class="muted">Highest milestone</span><span class="tab">${RUNGS[meta.topRung].name}</span></div>`:''}
       ${meta.bestDay?`<div class="row between"><span class="muted">Best Closing Bell</span><span class="tab">${fmtK(meta.bestDay.total)} · ${meta.bestDay.hand}</span></div>`:''}
       ${meta.daily&&meta.daily.date===today?`<div class="row between"><span class="muted">Today's Daily Market</span><span class="tab">${meta.daily.best} days</span></div>`:''}
     </div>`:''}
@@ -825,13 +941,17 @@ function renderScene(){
   }
   if(scene==='resolve'){
     const r=run.result, profit=r.gains*r.mult, line=(label,v,cls='')=>`<span class="${cls}">${label}</span><span class="${cls||(v>=0?'up':'down')}">${v>=0?'+':'−'}${fmt(Math.abs(v))}</span>`;
-    const msgs=[r.saved&&`You pawned Aunt's Pearls for ${fmt(r.saved)}. She would have wanted that. Probably not.`,r.prize&&`You beat ${run.event.name}. Prize: a ${r.prize} memo.`,r.moodUp&&`New mood unlocked: ${r.moodUp}.`].filter(Boolean);
+    const V=VERDICTS[r.tier]||VERDICTS.flat;
+    const msgs=[!r.allTime&&!r.streak&&!r.close&&[V.line,'verdict-line'],r.allTime&&['All-time best Closing Bell.','record'],r.streak&&[`${r.streak.n} ${r.streak.kind} days in a row. ${r.streak.line}`,'streak-'+r.streak.kind],r.close&&[CLOSE_CALL,'close'],
+      r.saved&&[`You pawned Aunt's Pearls for ${fmt(r.saved)}. She would have wanted that. Probably not.`],r.prize&&[`You beat ${run.event.name}. Prize: a ${r.prize} memo.`],r.moodUp&&[`New mood unlocked: ${r.moodUp}.`]].filter(Boolean);
     app.innerHTML=hud()+`<div class="row between resolve-head"><div class="h2">CLOSING BELL · DAY ${run.day}</div>${isBoss(run.day)?`<span class="pill down">${run.event.name.toUpperCase()}</span>`:''}</div>
     <div id="board" class="board box heat${r.shown?run.heat:0}"><div class="bl"><span class="lbl">Gains</span><span id="tG" class="tab">${fmtK(r.shown?r.gains:0)}</span></div><span class="xx">×</span><div class="bl"><span class="lbl">MULT</span><span id="tM" class="tab mlt">${fmtM(r.shown?r.mult:1)}</span></div><span class="xx">=</span><div class="bl"><span class="lbl">Profit</span><span id="tP" class="tab up">${fmtK(r.shown?profit:0)}</span></div><progress class="calculation-track" id="calculationProgress" max="1" value="${r.shown?1:0}" aria-label="Report calculation"></progress></div>
-    <div class="settlement-summary ${run.dead?'is-loss':''}" id="settlementSummary" ${r.shown?'':'hidden'} role="status">
+    <div class="settlement-summary tier-${r.tier} ${run.dead||r.net<0?'is-loss':''}" id="settlementSummary" ${r.shown?'':'hidden'} role="status">
+      <div class="verdict v-${r.tier} ${r.shown?'':'is-waiting'}" id="verdict"><b>${V.stamp}</b></div>
       <div class="settle-head"><span class="lbl">${run.dead?'Account closed':r.saved?'Rescued by Aunt’s Pearls':r.fire.length?'Rent paid after a fire sale':r.rent===0?'No rent due tonight':'Rent paid. You made it.'}</span><b class="tab">${fmt(Math.max(0,run.cash))}</b></div>
       <div class="sum tab">${line('Trading',r.net)}${r.notes.map(n=>line(n[0],n[1])).join('')}${r.inc?line('Property income',r.inc):''}${line(isBoss(run.day)?'Boss rent':'Rent',-r.rent)}${r.fire.map(f=>line('Fire sale: '+f[0],f[1])).join('')}${r.bounty?line('Boss bounty',r.bounty,'yel'):''}</div>
-      ${msgs.map(m=>`<div class="yel settle-msg">${m}</div>`).join('')}
+      ${run.dead?'':ladderHTML(r.shown?r.nw:r.fromNw)}
+      ${msgs.map(([m,cls='yel'])=>`<div class="settle-msg ${cls}">${m}</div>`).join('')}
     </div>
     <div class="box panel col pop" id="tally">
       <div class="tally-toolbar"><span id="tallyState">${r.shown?'How MULT was built':'Calculating your trades…'}</span><button class="sm ghost" data-act="finishtally" ${r.shown?'hidden':''}>Show total</button><button class="sm ghost" data-act="statement" ${r.shown?'':'hidden'}>Full statement</button></div>
@@ -894,13 +1014,15 @@ function renderScene(){
     app.innerHTML=`<div class="grow"></div>
     ${tv(sprite('aunt'),'BREAKING','Heir goes broke. No bailout. Great aunt spinning in grave.','PEARLS ▲ · DIGNITY ▼ · RENT ▲ ▲ ▲ · NOT TOO BIG TO FAIL','INHERITANCE HOUR')}
     <div class="logo" style="color:var(--red)">BROKE</div>
-    <div class="box panel col" style="gap:4px">
-      <div class="row between"><span class="muted">Days lasted</span><span class="tab">${run.day}</span></div>
-      <div class="row between"><span class="muted">Peak net worth</span><span class="tab">${fmt(run.peak)}</span></div>
+    <div class="box panel col over-report" style="gap:4px">
+      ${run.nwHist?.length>1?`<figure class="growth">${sparkSVG(run.nwHist,'growth-line')}<figcaption>Your fortune, day 0 to day ${run.day}</figcaption></figure>`:''}
+      <div class="row between"><span class="muted">Days lasted</span><span class="tab">${run.records?.days?'<b class="record-badge">NEW BEST</b> ':''}${run.day}</span></div>
+      <div class="row between"><span class="muted">Peak net worth</span><span class="tab">${run.records?.peak?'<b class="record-badge">NEW BEST</b> ':''}${fmt(run.peak)}</span></div>
+      <div class="row between"><span class="muted">Highest milestone</span><span class="tab">${run.rung>=0?RUNGS[run.rung].name:'None yet'}</span></div>
       <div class="row between"><span class="muted">Best Closing Bell</span><span class="tab">${run.best?`${fmtK(run.best.total)} · ${run.best.hand}`:'none'}</span></div>
       <div class="row between"><span class="muted">Bosses beaten</span><span class="tab">${run.bossesBeat}</span></div>
       <div class="row between"><span class="muted">Seed</span><span class="d yel">${escapeHTML(run.seed)}</span></div>
-      <div class="row between"><span class="muted">Pearls earned</span><span class="yel tab">+${run.earned}</span></div>
+      <div class="row between"><span class="muted">Pearls earned</span><span class="yel tab pearl-count" id="pearlCount">+${run.earned}</span></div>
     </div>
     <div class="col"><button data-act="setup">Ask Auntie for a bailout</button>
       <div class="actions"><button class="ghost" data-act="replay">Same seed</button><button class="ghost" data-act="share">Share certificate</button></div>
