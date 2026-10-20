@@ -32,6 +32,7 @@ src/data/content.js   ALL content and tuning tables (perks, hands, memos, bosses
 src/util.js           seeded RNG, money + big-number formatting, QUARTER/SIZES/ROUNDS constants
 src/persistence.js    versioned checkpoints and shared company reference restoration
 src/audio.js          WebAudio chiptune blips (unlocked on first tap)
+src/juice.js          cosmetic celebration effects: count-ups, popups, bill bursts, the Solitaire money cascade
 src/share.js          end-of-run certificate PNG + share sheet
 src/sprites.js        16x16 pixel sprites drawn on canvas (people, buildings)
 src/styles.css        the whole look (tokens at :root)

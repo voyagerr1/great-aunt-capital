@@ -73,3 +73,95 @@ button:not(:disabled):hover{filter:brightness(1.045)}
 @media(max-width:759px){.settlement-summary{gap:5px;padding:7px 8px}.settle-head b{font-size:19px}.board #tG,.board #tM,.board #tP{font-size:18px}.tally-toolbar{min-height:28px}.tally-toolbar>button{min-height:32px}}
 @media(max-width:759px) and (max-height:680px){#app[data-scene=resolve]>.resolve-head{display:none}#tally{padding:4px 6px;gap:4px}#tally .tally-toolbar{min-height:0}#tally .tally-toolbar>button{min-height:30px;padding:4px 8px}#app[data-scene=resolve]>#tally{min-height:38px}.settlement-summary{gap:4px;padding:6px 8px}.settlement-summary .sum>span{padding:2px 5px}.board{padding:5px 8px 14px}.board .lbl{font-size:10px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* ===== Celebration: Closing Bell payoff, wealth ladder, milestones ===== */
+#fx-layer{position:fixed;inset:0;pointer-events:none;z-index:70;overflow:hidden}
+.fx-pop{position:absolute;transform:translate(-50%,-50%);font:bold 16px/1 "Courier New",monospace;white-space:nowrap;text-shadow:1px 1px #fff;animation:fx-rise .9s ease-out forwards}
+.fx-gain{color:var(--green)}.fx-loss{color:var(--red);animation-name:fx-sink}.fx-mult{color:#000080}
+.fx-xmult{color:#7a1fa2;font-size:21px}
+.fx-heat{background:#ffffe1;color:#000080;border:1px solid #000;padding:3px 6px;font:bold 13px Tahoma,Arial,sans-serif;text-shadow:none;box-shadow:2px 2px #0006;animation-duration:1.2s}
+@keyframes fx-rise{0%{opacity:0;transform:translate(-50%,-30%) scale(.7)}15%{opacity:1;transform:translate(-50%,-60%) scale(1.15)}100%{opacity:0;transform:translate(-50%,-260%) scale(1)}}
+@keyframes fx-sink{0%{opacity:0;transform:translate(-50%,-50%)}15%{opacity:1}100%{opacity:0;transform:translate(-50%,160%)}}
+.fx-bills,.fx-arrows{position:absolute;opacity:0;animation:fx-fly 1.5s cubic-bezier(.2,.6,.4,1) var(--delay) forwards}
+.fx-bills{width:22px;height:13px;margin:-6px 0 0 -11px;background:#d9ead3;border:1px solid #1d6b37;color:#0b3d1e;font:bold 10px/11px "Courier New",monospace;text-align:center;box-shadow:inset 0 0 0 1px #9fc59a}
+.fx-arrows{color:var(--red);font:bold 18px/1 Tahoma,Arial,sans-serif;animation-name:fx-drop}
+@keyframes fx-fly{0%{opacity:1;transform:translate(0,0) rotate(0)}45%{opacity:1;transform:translate(var(--dx),var(--dy)) rotate(calc(var(--rot) * .5))}100%{opacity:0;transform:translate(calc(var(--dx) * 1.4),calc(var(--dy) + 340px)) rotate(var(--rot))}}
+@keyframes fx-drop{0%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(calc(var(--dx) * .4),calc(var(--dy) + 220px))}}
+#fx-cascade{position:fixed;inset:0;width:100%;height:100%;z-index:80;cursor:pointer;transition:opacity .35s}
+#fx-cascade.is-leaving{opacity:0}
+
+/* The board heats up as MULT climbs past 10, 100 and 1000. */
+.board{transition:background-color .25s}
+.board.heat1{background:#fffbe6}
+.board.heat2{background:#fff1c7;box-shadow:var(--sunken),0 0 0 2px #c08000}
+.board.heat3{background:#ffe7a0;box-shadow:var(--sunken),0 0 0 3px #a52020;animation:heat-glow .6s steps(2) infinite}
+.board.heat3 #tM{color:#a52020}
+@keyframes heat-glow{50%{box-shadow:var(--sunken),0 0 0 3px #c08000}}
+.board.jolt{animation:jolt .18s ease-out}
+.board.jolt-loss{animation:jolt-loss .3s ease-out}
+.board.heat-up{animation:heat-up .45s ease-out}
+@keyframes jolt{40%{transform:scale(1.025)}}
+@keyframes jolt-loss{30%{background:#f5c9c0;transform:translateX(-3px)}60%{transform:translateX(3px)}}
+@keyframes heat-up{30%{transform:scale(1.05);box-shadow:var(--sunken),0 0 0 4px #000080}}
+#tG.pulse,#tM.pulse{animation:num-pop .22s ease-out}
+@keyframes num-pop{50%{transform:scale(1.18)}}
+
+/* The verdict stamp: inked on top of the settlement, for wins and losses alike. */
+.settlement-summary{position:relative}
+.verdict{position:absolute;right:50%;top:2px;z-index:2;pointer-events:none;transform:translateX(50%) rotate(-7deg);mix-blend-mode:multiply;opacity:.88}
+.verdict b{display:block;font:bold 22px/1 Tahoma,Arial,sans-serif;letter-spacing:2px;padding:5px 9px;border:3px double currentColor;border-radius:3px;white-space:nowrap;color:inherit;background:#fff3}
+.v-record,.v-great,.v-good{color:#1d6b37}.v-boss{color:#000080}.v-flat{color:#606060}.v-red,.v-bloodbath,.v-broke{color:#b01818}
+.v-record b,.v-boss b,.v-bloodbath b,.v-broke b{font-size:26px}
+.verdict.is-waiting{opacity:0}
+.verdict.slam{animation:slam .38s cubic-bezier(.3,1.6,.5,1)}
+@keyframes slam{0%{opacity:0;transform:translateX(50%) rotate(-24deg) scale(2.6)}70%{opacity:.95;transform:translateX(50%) rotate(-5deg) scale(.92)}100%{opacity:.88;transform:translateX(50%) rotate(-7deg) scale(1)}}
+.settlement-summary.glow-win{animation:win-glow 1.2s ease-out}
+@keyframes win-glow{0%,40%{background:#fff7c2}}
+.settlement-summary.glow-loss{animation:loss-glow 1.2s ease-out}
+.settlement-summary>div.settle-msg{text-align:left}
+@keyframes loss-glow{0%,40%{background:#f2b8ae}}
+.settle-msg.verdict-line{color:#344b2e}.is-loss .settle-msg.verdict-line{color:#7a2020}
+.settle-msg.record{color:#000080;font-weight:bold}.settle-msg.streak-green{color:var(--green);font-weight:bold}
+.settle-msg.streak-red,.settle-msg.close{color:var(--red);font-weight:bold}
+
+/* Wealth ladder: a Windows progress bar toward the next net-worth milestone. */
+.ladder{display:flex;flex-direction:column;gap:3px}
+.ladder-text{display:flex;gap:6px;align-items:baseline;font-size:12px;min-width:0}.ladder-text b{color:#000080;font-size:12px}.ladder-text .tab{margin-left:auto;white-space:nowrap}
+.ladder-bar{height:12px;background:#fff;box-shadow:var(--sunken);padding:2px}
+.ladder-bar i{display:block;height:100%;max-width:100%;background:repeating-linear-gradient(90deg,#000080 0 7px,transparent 7px 9px);transition:width .8s ease-out}
+.ladder.is-draining .ladder-bar i{background:repeating-linear-gradient(90deg,#b01818 0 7px,transparent 7px 9px)}
+.ladder.rung-up{animation:rung-up .7s ease-out}
+@keyframes rung-up{0%,30%{background:#ffffa0;box-shadow:0 0 0 2px #000080}}
+.hud .cash{position:relative}
+.ladder-mini{position:absolute;left:6px;right:6px;bottom:2px;height:3px;background:#0001}
+.ladder-mini i{display:block;height:100%;background:#000080;transition:width .8s ease-out}
+.growth{margin:2px 0}.growth-line{display:block;width:100%;height:46px;background:#f4f7f2;box-shadow:var(--sunken)}
+.growth-line .ln{fill:none;stroke-width:2;vector-effect:non-scaling-stroke}.growth-line .ln.up{stroke:var(--green)}.growth-line .ln.dn{stroke:var(--red)}
+.growth-line .base{stroke:#999;stroke-width:1;stroke-dasharray:3 4;vector-effect:non-scaling-stroke}
+.growth figcaption{font-size:11px;color:#505050}
+
+/* Milestone dialog */
+.rung-box{display:flex;gap:12px;align-items:center}
+.rung-icon{flex:0 0 44px;height:44px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff6b0,#d4a017 60%,#8a6400);color:#5a3d00;font:bold 26px/44px "Courier New",monospace;text-align:center;box-shadow:1px 1px 0 #000;animation:coin-spin 1.4s ease-in-out 2}
+@keyframes coin-spin{50%{transform:scaleX(.1)}}
+.rung-name{font:bold 22px/1.2 Tahoma,Arial,sans-serif;color:#000080;animation:num-pop .4s ease-out .2s both}
+.rung-list{background:#fff;box-shadow:var(--sunken);padding:3px;font-size:12px;max-height:180px;overflow-y:auto}
+.rung-list>div{display:flex;justify-content:space-between;gap:8px;padding:2px 5px;color:#808080}.rung-list .got{color:#161616}.rung-list .now{background:#000080;color:#fff}
+
+/* Small wins elsewhere */
+.slot.slot-new{animation:slot-new .6s cubic-bezier(.3,1.6,.5,1)}
+@keyframes slot-new{0%{transform:scale(0) rotate(-20deg)}100%{transform:scale(1)}}
+.handline.hand-pop{animation:hand-pop .6s ease-out}
+@keyframes hand-pop{0%,35%{background:#ffffa0;box-shadow:inset 0 0 0 2px #000080}}
+.record-badge{display:inline-block;background:#ffffa0;color:#a52020;border:1px solid #a52020;font-size:10px;padding:1px 4px;margin-right:4px}
+.record-badge.slam{animation:badge-slam .35s cubic-bezier(.3,1.6,.5,1)}
+@keyframes badge-slam{0%{transform:scale(2.4);opacity:0}}
+.pearl-count{font-weight:bold}
+
+/* The application window joins in: a flashing title bar for wins, "Not Responding" for disasters. */
+.application-window.is-flashing .application-title{animation:title-flash .9s steps(1) 1}
+@keyframes title-flash{0%,33%,66%{background:#008080}16%,50%,83%{background:#000080}}
+.application-window.is-hung .application-title{background:linear-gradient(90deg,#808080,#b5b5b5)}
+.application-window.is-hung #app{filter:grayscale(.7) contrast(.85) brightness(1.08);cursor:wait}
+@media(prefers-reduced-motion:reduce){.verdict.is-waiting{opacity:.88}}
+@media(max-width:759px){.verdict b{font-size:17px;letter-spacing:1px;padding:4px 7px}.v-record b,.v-boss b,.v-bloodbath b,.v-broke b{font-size:20px}}

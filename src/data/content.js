@@ -310,6 +310,45 @@ export const MOODS=[
 /* The goal: net worth that passes the richest person in the world. Reaching it pays RICHEST_PEARLS once per run. */
 export const RICHEST=5e11, RICHEST_PEARLS=50;
 
+/* ===== Celebration =====
+   The wealth ladder: net-worth rungs celebrated once per run when you pass them. Cosmetic only, they pay nothing.
+   RICHEST has its own screen, so it sits on the ladder as the goal without a dialog of its own. */
+export const RUNGS=[
+ {at:1.25e5,name:'In the Black',txt:'Up $25K on Auntie’s money. You bought name-brand cereal.'},
+ {at:1.5e5,name:'Fifty Grand Up',txt:'You now refer to your checking account as “the portfolio.”'},
+ {at:2e5,name:'Doubled It',txt:'You doubled Auntie’s money. She did it in 1974 by marrying a dentist.'},
+ {at:3e5,name:'Tripled It',txt:'Your cousin wants “a quick word about an opportunity.”'},
+ {at:5e5,name:'Half a Million',txt:'Your bank sent a fruit basket. The fruit is also a loan.'},
+ {at:1e6,name:'Millionaire',txt:'Your bank now calls you “valued.” They used to call you “sir, please.”'},
+ {at:1e7,name:'Eight Figures',txt:'You have started saying “liquidity” at dinner. Nobody asked.'},
+ {at:1e8,name:'Nine Figures',txt:'A magazine calls you a disruptor. Of what, it does not say.'},
+ {at:1e9,name:'Billionaire',txt:'Congress would like a word. A friendly one. Over steak.'},
+ {at:1e10,name:'Ten Billion',txt:'Your yacht has a smaller yacht. That yacht has a lawyer.'},
+ {at:1e11,name:'Hundred Billion',txt:'You are richer than several countries. They have noticed.'},
+ {at:RICHEST,name:'Richest in the World',txt:'The goal.',silent:true},
+ {at:1e12,name:'Trillionaire',txt:'The word did not exist until you needed it.'},
+ {at:1e15,name:'Quadrillionaire',txt:'You bought the moon. The moon is now a gated community.'},
+ {at:1e24,name:'Septillionaire',txt:'Economists have stopped returning your calls. Out of fear.'},
+ {at:1e50,name:'Post-Money',txt:'Money is now measured in you.'},
+];
+/* The Closing Bell verdict. Picked in order; the first that matches wins. Every tier, good or bad, gets a stamp. */
+export const VERDICTS={
+  broke:{stamp:'ACCOUNT CLOSED',line:'The bank changed the locks while you were reading this.'},
+  boss:{stamp:'BOSS BEATEN',line:'The landlord leaves. The lawyers stay.'},
+  record:{stamp:'RECORD DAY',line:'Best Closing Bell of the run. Frame this statement.'},
+  great:{stamp:'BIG DAY',line:'Gains well past rent. Somebody buy a boat.'},
+  good:{stamp:'GREEN DAY',line:'Up on the day. Rent paid with change to spare.'},
+  flat:{stamp:'PAID RENT',line:'You sat it out. The landlord did not.'},
+  red:{stamp:'RED DAY',line:'Down on the day. The landlord still got paid.'},
+  bloodbath:{stamp:'BLOODBATH',line:'Losses bigger than rent. Rex is lying down.'},
+};
+// Lines for runs of green or red days, shown from the 3rd day in a row.
+export const STREAK_LINES={
+  green:['Hot hand. Do not touch anything.','The market is scared of you.','Analysts call it luck. Analysts are broke.','This is how legends and indictments start.'],
+  red:['Auntie’s portrait is frowning.','The bank has your photo on the wall now.','Rex wants to do a segment on you. Not a nice one.','Maybe try buying the ones going up?'],
+};
+export const CLOSE_CALL='Close call. You are short of tomorrow’s rent.';
+
 export const UPGRADES=[
  {id:'allowance',name:'Bigger Inheritance',desc:'Start each run with +$25,000.',max:5,cost:l=>3*(l+1)},
  {id:'hand',name:'Longer Ticker Tape',desc:'+1 stock to choose from every day.',max:2,cost:l=>8*(l+1)},

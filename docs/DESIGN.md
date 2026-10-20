@@ -148,6 +148,24 @@ static and your great aunt says one line.
 Passing $500B net worth (`RICHEST`) makes you the richest person in the world: a milestone screen, +50 pearls
 once per run, and the share certificate says so. The run keeps going after it. Infinity prints as `naneinf`.
 
+## Celebration (payoff for growth, and for losses)
+The core pleasure is watching the number grow, so every gain and every loss gets ceremony. All of it is cosmetic:
+it moves no money and draws nothing from the seeded RNG (`npm run sim` output is unchanged).
+- **Wealth ladder (`RUNGS`).** Net-worth milestones from $125K to 1e50, each celebrated once per run with a dialog
+  and the money cascade. A Windows progress bar shows the way to the next rung (log scale between rungs) in the HUD,
+  on the morning net-worth box and in the settlement, where it slides from this morning's net worth to tonight's,
+  red when it shrinks. The early rungs are close together because the median run peaks near $120K.
+- **Closing Bell.** Each tally step floats its number off the board; MULT crossing 10, 100 and 1000 heats the board up
+  on the spot. Then profit counts up and a verdict stamp (`VERDICTS`) slams onto the settlement: Record Day, Boss
+  Beaten, Big Day, Green Day, Paid Rent, Red Day, Bloodbath, Account Closed. Wins throw paper money and flash the
+  title bar; losses drop red arrows, shake the window and, for disasters, turn it "Not Responding".
+- **The Solitaire win, with money.** Record days, beaten bosses, milestones, Tycoon and richest-in-the-world launch
+  bills and stock certificates that bounce along the bottom of the screen leaving trails. Tap to dismiss.
+- **Streaks and records.** Three or more green or red days in a row get a line (`STREAK_LINES`); a day that leaves
+  you short of tomorrow's rent is a close call. The run report shows your fortune over the run, the highest rung and
+  New Best badges, and counts up the pearls.
+- Reduced motion keeps the stamps and final numbers and drops the movement.
+
 ## Meta progression (The Will)
 Pearls on death = (days − 1 + ⌊3·log2(peak / $100K)⌋ + bosses beaten + 10 if Tycoon) × (1 + 0.25 × mood).
 Upgrades: Bigger Allowance, Longer Ticker Tape, Premium Cable, Better Gossip, Broker Friend,
