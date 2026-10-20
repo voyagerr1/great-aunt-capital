@@ -58,6 +58,29 @@ describe('player decision clarity',()=>{
 });
 
 describe('safe result and restart controls',()=>{
+  it('opens complete stock modifiers without submitting a drag trade',()=>{
+    vi.useFakeTimers();
+    try{
+      const r=api.run,c=r.hand[0];Object.assign(c.co,{ed:'gold',enh:'glass',seal:'red'});c.short=true;c.split=true;show('play');
+      const card=document.querySelector('.card'),capture=vi.fn();card.setPointerCapture=capture;
+      const button=el('stock');
+      button.dispatchEvent(Object.assign(new Event('pointerdown',{bubbles:true}),{clientX:10,clientY:10,pointerId:1}));
+      card.dispatchEvent(Object.assign(new Event('pointermove',{bubbles:true}),{clientX:160,clientY:10,pointerId:1}));
+      card.dispatchEvent(new Event('pointerup',{bubbles:true}));
+      vi.advanceTimersByTime(250);expect(capture).not.toHaveBeenCalled();expect(r.idx).toBe(0);
+      const cash=r.cash,state=rngState();button.click();
+      const details=document.querySelector('.sheet').textContent;
+      for(const label of ['GOLD LEAF','GLASS','RED SEAL','Short position','Split ×2'])expect(details).toContain(label);
+      expect(details).toContain('Moves 3x');expect(r.idx).toBe(0);expect(r.cash).toBe(cash);expect(rngState()).toBe(state);
+    }finally{vi.useRealTimers()}
+  });
+  it('keeps full market news in a dialog and returns to the current stock',()=>{
+    const r=api.run;r.news.push({arc:'Test story',txt:'A full story message for the news reader.'});show('play');
+    el('marketnews').focus();el('marketnews').click();
+    expect(document.querySelector('.sheet').textContent).toContain('A full story message for the news reader.');
+    expect(document.querySelector('.sheet').textContent).toContain(r.event.name);
+    el('closemodal').click();expect(document.activeElement.dataset.act).toBe('marketnews');expect(r.idx).toBe(0);
+  });
   it('labels settled rent using the amount actually charged',()=>{
     api.setHeadless(true);finish();const paid=api.run.result.rent;
     api.setEvent({id:'changed',name:'Changed',txt:'Test rule',fx:{rent:5}});show('resolve');

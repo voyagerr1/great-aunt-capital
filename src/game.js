@@ -523,6 +523,17 @@ function perkState(p){
 const sheet=(inner,close=true)=>`<div class="modal" data-act="closemodal"><div class="sheet box col pop" role="dialog" aria-modal="true" aria-label="Details">${inner}${close?'<button data-act="closemodal">Close</button>':''}</div></div>`;
 function modalHTML(){
   const m=run&&run.modal; if(!m) return '';
+  if(m.kind==='stock'){
+    const c=run.hand[run.idx];if(!c)return '';
+    const co=c.co,effects=stockEffects(c);
+    return sheet(`<div class="n d">${co.tick} · ${co.name}</div><div>${fmtP(co.price)} per share · ${S(co.sec).id} · ${['','Low','Medium','High'][co.vol]} risk</div>
+      ${effects.length?effects.map(([name,description])=>`<div class="guide-step"><b>${name}</b>${description}</div>`).join(''):'<div class="empty-state">Plain shares. No special modifiers.</div>'}
+      <div class="guide-step"><b>Price history</b>${sparkSVG(co.hist)}<span class="muted">Past closing prices, not a forecast.</span></div>`);
+  }
+  if(m.kind==='marketnews')return sheet(`<div class="n d">Today’s market news</div><div><b>${run.event.name}</b> · ${evTxt()}</div>
+    ${run.news.map(n=>`<div class="guide-step"><b>${n.sec?`${n.sec} ${n.dir>0?'▲':'▼'}`:n.arc||'Story'}</b>${n.txt}</div>`).join('')}
+    ${run.rex.map(x=>`<div class="guide-step"><b>Rex: ${x.call} ${x.tick}</b>${x.line}</div>`).join('')}
+    <div class="muted">Headlines right about ${pctOf(newsAcc())}. Rex right about ${pctOf(rexAcc())}. These are tips, not guarantees.</div>`);
   if(m.kind==='inventory')return sheet(`<div class="n d">Your inventory</div><div class="lbl">Perks · ${perkSlots()}/5 slots · trigger left to right</div>
     ${run.perks.length?run.perks.map((p,i)=>`<button class="inventory-entry" data-act="perk" data-i="${i}"><b>${i+1}. ${P(p.id).name}</b><span>${p.disabled?'Disabled by today’s boss.':P(p.id).desc}</span></button>`).join(''):`<div class="empty-state">No perks yet. The Broker sells bonuses that last for this run after the boss on day ${nextBossDay(run.day)}.</div>`}
     <div class="lbl">Items · ${run.cons.length}/${run.consMax} carried · used once</div>
@@ -563,25 +574,28 @@ function tv(host,chyronTag,chyronTxt,crawl,net,heat=0){
 }
 function cardHTML(c,back){
   const co=c.co, E=ED(co), risk=['','Low','Medium','High'][co.vol];
+  const effects=stockEffects(c);
   const chip=(txt,bg,fg='var(--ink)')=>`<span class="chip" style="background:${bg};color:${fg}">${txt}</span>`;
-  const chips=[chip(co.sec,S(co.sec).c),chip(risk+' risk','transparent'),co.ed?chip(E.name,'#dedede','var(--ink)'):'',co.enh?chip(ENH[co.enh].name,'#5b3c88','var(--cream)'):'',
-    co.seal?chip(SEALS[co.seal].name,SEALS[co.seal].c,co.seal==='gold'?'var(--ink)':'var(--cream)'):'',c.rex?chip('REX: '+c.rex,'var(--red)','var(--cream)'):'',
-    c.short?chip('SHORT','#fff0e8','var(--red)'):'',c.split?chip('SPLIT x2','#e3eddf','var(--green)'):''].join('');
+  const chips=[chip(co.sec,S(co.sec).c),chip(risk+' risk','transparent'),c.short?chip('SHORT','#fff0e8','var(--red)'):'',c.rex?chip('REX: '+c.rex,'var(--red)','var(--cream)'):''].join('');
   const noRum=E.noRumor||fx('noRumor');
   const rum=noRum
     ?`<span class="tag" style="background:var(--ink)">NO FILINGS</span><br>${E.noRumor?E.txt:'The Fortune Teller took every filing.'}`
-    :`<span class="tag" style="background:${c.hint==='bull'?'#1d8a52':'#c23a36'}">${c.hint==='bull'?'▲ Expects a rise':'▼ Expects a fall'}</span><span class="rumor-source">${c.verified?'Verified tip':'Unverified rumor · may be wrong'}</span>${c.rumor}${co.ed?` <span class="edtxt">${E.txt}</span>`:''}${co.enh?` <span class="edtxt">${ENH[co.enh].txt}</span>`:''}`;
+    :`<span class="tag" style="background:${c.hint==='bull'?'#1d8a52':'#c23a36'}">${c.hint==='bull'?'▲ Expects a rise':'▼ Expects a fall'}</span><span class="rumor-source">${c.verified?'Verified tip':'Unverified rumor · may be wrong'}</span><span class="rumor-text">${c.rumor}</span>`;
   return `<div class="card ${co.ed?'ed-'+co.ed:''} ${co.enh?'enh-'+co.enh:''} ${back?'back':''}"><div class="frame">
       <div class="certhead"><span>Market.exe · Stock order</span><span>No. ${String(co.serial).padStart(5,'0')}</span></div>
       <div class="seal" style="background:${S(co.sec).c}">${co.sec.slice(0,4)}</div>
       ${co.seal?`<div class="wax" style="background:${SEALS[co.seal].c}"></div>`:''}
-      <div><div class="tick">${co.tick}</div><div class="cname">${co.name}</div></div>
-      <div class="chips">${chips}</div>
+      <div class="company-heading"><div class="tick">${co.tick}</div><div class="cname">${co.name}</div></div>
+      <div class="stock-meta"><div class="chips">${chips}</div><button class="stock-details" data-act="stock" aria-label="Stock details${effects.length?', '+effects.length+' modifier'+(effects.length===1?'':'s'):''}">${effects.length===1?effects[0][0]:effects.length?effects.length+' modifiers':'Details'} ›</button></div>
       <figure class="stock-history">${sparkSVG(co.hist)}<figcaption>Past prices · not a forecast</figcaption></figure>
       <div class="rumor">${rum}</div>
       <div class="cfoot tab"><span>${fmtP(co.price)}/sh</span><span>${co.lastDay?`${chg(co.last)} · seen ${co.seen}x`:'first look'}</span><span>${run.hand.length-run.idx} left</span></div>
       ${back?'':'<div class="stamp buy">BOUGHT</div><div class="stamp pass">PASSED</div>'}
   </div></div>`;
+}
+function stockEffects(c){
+  const co=c.co;
+  return [co.ed&&[ED(co).name,ED(co).txt],co.enh&&[ENH[co.enh].name,ENH[co.enh].txt],co.seal&&[SEALS[co.seal].name,SEALS[co.seal].txt],c.short&&['Short position','Wins when the stock falls and loses when it rises.'],c.split&&['Split ×2','The position scores at twice its stake.']].filter(Boolean);
 }
 // Net worth on the morning news. Skipped on day 1 when there is nothing to report.
 function portfolioBox(){
@@ -605,24 +619,22 @@ function propPanel(id){
    <button data-act="buyprop" ${soldToday||run.cash<=pr?'disabled':''}>${soldToday?'Back on market tomorrow':run.cash<=pr?`Need ${fmtK(pr-run.cash)} more`:`Buy for ${fmtK(pr)}`}</button></div>`;
 }
 function notesStrip(){
-  return `<div class="box notes">${run.news.filter(n=>n.sec).map(n=>`${secChip(n.sec)}<span class="${n.dir>0?'up':'down'}">${n.dir>0?'▲':'▼'}</span>`).join(' ')}
-    ${run.rex.map(x=>`<span class="muted">·</span><span class="sec" style="background:var(--red);color:var(--cream)">REX</span><span>${x.call} ${x.tick}</span>`).join('')}
-    ${run.event.id!=='quiet'?`<span class="muted">·</span><span class="yel">${run.event.name}</span>`:''}</div>`;
+  return `<button class="market-news" data-act="marketnews" aria-label="Read today’s market news"><span>News</span><span>${run.news.filter(n=>n.sec).map(n=>`${n.sec} ${n.dir>0?'▲':'▼'}`).join(' · ')}</span><b>Read ›</b></button>`;
 }
 const handLabel=id=>id?`${H(id).name} <span class="mlt">×${fmtM(fx('noHand')?1:handMult(id))}</span>`:'<span class="muted">No buys yet · ×1</span>';
 function tradeControls(c,now,ifBuy,o,k){
   const buy=tradeIntent(c,true),pass=tradeIntent(c,false),cashLeft=run.cash-o.cost,handChange=!fx('noHand')&&(ifBuy?handMult(ifBuy):1)>(now?handMult(now):1);
-  const reason=c.shredded?'This order was shredded. Pass to continue.':!buy.buy?buy.message:pass.buy?'Buying is required by today’s rules.':cashLeft<rentTonight()?'Leaves less than tonight’s rent in cash. Stocks settle before rent is charged.':'';
+  const reason=c.shredded?'This order was shredded. Pass to continue.':!buy.buy?buy.message:pass.buy?'Buying is required by today’s rules.':cashLeft<rentTonight()?'Cash below tonight’s rent. Stocks settle before rent.':'';
   const receipt=lastTrade?.day===run.day&&lastTrade.idx===run.idx?lastTrade.text:'Choose a stake, then buy or pass.';
   return `<section class="trade-controls" aria-label="Your trading decision">
     <button class="handline ${handChange&&buy.buy?'hand-upgrade':''}" data-act="hands"><span><span class="lbl">Starting MULT</span> ${handLabel(now)}</span><span>${buy.buy?`If you buy: ${handLabel(ifBuy)}`:'View portfolio hands'}${handChange&&buy.buy?' <b class="hand-boost">improves</b>':''}</span></button>
     <div class="stake-heading"><span>Stake <small>% of morning cash</small></span><span class="muted">Max = available cash</span></div>
-    <div class="sizes" role="group" aria-label="Investment size">${SIZES.map(z=>`<button class="${run.size===z?'':'ghost'}" data-act="size" data-z="${z}" aria-pressed="${run.size===z}">${z>=1?'Max':Math.round(z*100)+'%'}</button>`).join('')}</div>
+    <div class="sizes" role="group" aria-label="Investment size, percent of morning cash; Max uses available cash">${SIZES.map(z=>`<button class="${run.size===z?'':'ghost'}" data-act="size" data-z="${z}" aria-pressed="${run.size===z}">${z>=1?'Max':Math.round(z*100)+'%'}</button>`).join('')}</div>
     <div class="order-quote tab"><div><span class="lbl">${o.sh.toLocaleString('en-US')} shares</span><b>${fmtK(o.cost)} to invest</b></div><div><span class="lbl">Cash left uninvested</span><b>${fmtK(Math.max(0,cashLeft))}</b></div></div>
     <div class="decision-notes">${reason?`<div class="decision-note ${!buy.buy||cashLeft<rentTonight()?'caution':''}">${reason}</div>`:''}
-    ${fx('noHand')?'<div class="decision-note">Today’s boss fixes starting MULT at ×1. Perks can still raise it.</div>':''}
-    ${k<.95&&!has('whale')&&buy.buy?`<div class="decision-note">Large order: winning gains reduced ${Math.round((1-k)*100)}% by market impact.</div>`:''}</div>
-    <div class="actions"><button class="ghost" data-act="pass" ${pass.buy?'disabled':''}>${pass.buy?'Buy required':'← Pass'}</button><button class="primary green" data-act="buy" ${!buy.buy?'disabled':''}>${pass.buy?'Required buy →':!buy.buy?'Buy unavailable':'Buy '+c.co.tick+' →'}</button></div>
+    ${fx('noHand')?'<div class="decision-note">Boss fixes starting MULT at ×1.</div>':''}
+    ${k<.95&&!has('whale')&&buy.buy?`<div class="decision-note">Market impact: winning gains −${Math.round((1-k)*100)}%.</div>`:''}</div>
+    <div class="actions"><button class="ghost" data-act="pass" ${pass.buy?'disabled':''}>${pass.buy?'Buy required':'← Pass'}</button><button class="primary green" data-act="buy" ${!buy.buy?'disabled':''}><span>${pass.buy?'Required buy →':!buy.buy?'Buy unavailable':'Buy '+c.co.tick+' →'}</span><small class="buy-cost">${buy.buy?fmtK(o.cost):''}</small></button></div>
     <div class="trade-receipt ${lastTrade?.day===run.day&&lastTrade.idx===run.idx?'received':''}" role="status">${receipt}</div>
   </section>`;
 }
@@ -793,7 +805,7 @@ function renderScene(){
     const c=run.hand[run.idx], so=run.hand.filter(x=>x.bought);
     const now=bestHand(so), ifBuy=bestHand([...so,c]), o=lot(c), k=o.sh?impact(c,o.cost):1;
     app.innerHTML=hud()+notesStrip()+`
-    <div class="market scroll grow"><div class="order-progress"><b>Order ${run.idx+1} of ${run.hand.length}</b><span>${so.length} bought today</span><progress max="${run.hand.length}" value="${run.idx}" aria-label="Orders completed"></progress></div><div class="deck" id="deck">${cardHTML(c,false)}</div></div>
+    <div class="market grow"><div class="order-progress"><b>Order ${run.idx+1} of ${run.hand.length}</b><span>${so.length} bought today</span><progress max="${run.hand.length}" value="${run.idx}" aria-label="Orders completed"></progress></div><div class="deck" id="deck">${cardHTML(c,false)}</div></div>
     ${tradeControls(c,now,ifBuy,o,k)}`;
     bindSwipe(); return;
   }
@@ -924,6 +936,8 @@ if(app) app.addEventListener('click',e=>{
   else if(a==='cons'){run.modal={kind:'cons',i};render()}
   else if(a==='inventory'){run.modal={kind:'inventory'};render()}
   else if(a==='guide'){run.modal={kind:'guide'};render()}
+  else if(a==='stock'){run.modal={kind:'stock'};render()}
+  else if(a==='marketnews'){run.modal={kind:'marketnews'};render()}
   else if(a==='finishtally')finishTally?.();
   else if(a==='closemodal'){if(pendingStart)pendingStart=null;else if(run)run.modal=null;render()}
   else if(a==='pleft') movePerk(run.modal.i,-1);
@@ -976,7 +990,7 @@ function bindSwipe(){
   const card=document.querySelector('#deck .card:not(.back)'); if(!card) return;
   const sb=card.querySelector('.buy'), sp=card.querySelector('.pass');
   let x0=null,y0=0,dx=0,dy=0;
-  card.addEventListener('pointerdown',e=>{if(busy||run.modal||e.isPrimary===false)return;unlock();x0=e.clientX;y0=e.clientY;dx=0;dy=0;card.setPointerCapture(e.pointerId);card.style.animation='none';card.style.transition='none'});
+  card.addEventListener('pointerdown',e=>{if(busy||run.modal||e.isPrimary===false||e.target.closest('button,a,input'))return;unlock();x0=e.clientX;y0=e.clientY;dx=0;dy=0;card.setPointerCapture(e.pointerId);card.style.animation='none';card.style.transition='none'});
   card.addEventListener('pointermove',e=>{if(x0===null)return;dx=e.clientX-x0;
     dy=e.clientY-y0;if(Math.abs(dy)>Math.abs(dx))return;
     card.style.transform=`translateX(${dx}px)`;

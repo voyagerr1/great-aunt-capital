@@ -35,6 +35,8 @@ src/audio.js          WebAudio chiptune blips (unlocked on first tap)
 src/share.js          end-of-run certificate PNG + share sheet
 src/sprites.js        16x16 pixel sprites drawn on canvas (people, buildings)
 src/styles.css        the whole look (tokens at :root)
+src/ux.css            player-facing hierarchy and feedback
+src/layout.css        viewport-fitting trading layout and compact breakpoints
 scripts/sim.mjs       balance simulator; scripts/strategies.js holds the bot players
 tests/                vitest + jsdom
 ```
@@ -59,12 +61,12 @@ tests/                vitest + jsdom
 - The RNG is seeded per run. Use `R()`/`pick`/`rr`/`shuffle` from util.js, never `Math.random`, in game logic.
 
 ## Conventions
-- Phone first: test layouts at ~380px wide. Desktop app width caps at 960px, with an account sidebar from 760px up. No horizontal scroll.
+- Phone first: test layouts at ~380px wide and 320×568. Trading fits the viewport without page, stock or account scrolling; reserve scrolling for dialogs and menu lists. The trading window caps at 1100px on normal desktops, with a three-column layout for short landscape windows. Other menus retain the 960px cap.
 - Keep it focused: every system should feed the swipe → Closing Bell loop. Prefer a sheet over a new screen.
 - Keep the look: Windows 95–98 personal finance software. Teal desktop, gray beveled windows,
   navy title bars, Tahoma/system text, white stock order documents and spreadsheet reports.
   Keep pixel portraits/buildings, clear gain/loss colors, and plain readable labels. No CRT overlay,
-  external font dependency, or layered playing-card deck. Mobile stacks the same panels.
+  external font dependency, or layered playing-card deck. Mobile trading condenses account controls and keeps the full stock and decision panel visible. Complete modifiers and market news open in dialogs. Trading geometry is owned by src/layout.css.
 - Copy is short, plain and funny. Name things by what players recognize. No emoji in UI.
 - Money is big ($100K start). Use `fmt` for full amounts and `fmtK` for compact chips.
 - New content goes in `src/data/content.js` as data, not as special cases scattered in logic.
