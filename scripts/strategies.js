@@ -56,6 +56,6 @@ export function playRun(api, { strategy = 'balanced', size = 0.25, shop = true, 
     if(g+1<maxDays)api.startDay();
     run = api.run;
   }
-  return { days: run.day, peak: run.peak, tycoon: !!run.tycoon, bestMult: run.best ? run.best.mult : 1, bosses: run.bossesBeat };
+  return { days: run.day, peak: run.peak, tycoon: !!run.tycoon, richest: !!run.richest, bestMult: run.best ? run.best.mult : 1, bosses: run.bossesBeat };
 }
 export const quantile = (arr, q) => [...arr].sort((a, b) => a - b)[Math.floor(q * (arr.length - 1))];

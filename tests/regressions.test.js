@@ -37,6 +37,17 @@ describe('property transactions and Tycoon continuation',()=>{
   });
 });
 
+describe('richest person in the world',()=>{
+  it('pays once, survives resume and returns to the Closing Bell',()=>{
+    const r=fresh();r.cash=1e12;const pearls=api.meta.pearls;finish();
+    expect(api.scene).toBe('richest');expect(r.richest).toBe(true);expect(api.meta.pearls).toBe(pearls+50);
+    api.saveSession();expect(api.resumeRun()).toBe(true);expect(api.scene).toBe('richest');
+    show('richest');expect(document.getElementById('app').textContent).toContain('richest person in the world');
+    click('richestback');expect(api.scene).toBe('resolve');
+    api.startDay();finish();expect(api.scene).toBe('resolve');expect(api.meta.pearls).toBe(pearls+50);
+  });
+});
+
 describe('boss suppression survives inventory changes',()=>{
   it.each([BOSSES.find(b=>b.id==='goose'),FINALS.find(b=>b.id==='cousin')])('$name keeps its target disabled when moved or another perk is sold',boss=>{
     const r=bossDay(boss);r.perks=[api.newPerk('gnome'),api.newPerk('mcat'),api.newPerk('larry')];api.startDay();

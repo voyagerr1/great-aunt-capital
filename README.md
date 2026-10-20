@@ -1,6 +1,6 @@
 # Great Aunt Capital
 
-A stock-trading roguelite inside Great Aunt Mildred's late-90s personal finance software. She gives you $100,000.
+A stock-trading roguelite inside your late great aunt's 90s personal finance software. You've inherited $100,000. Try to become the richest person in the world.
 Watch the morning news, swipe on stock certificates, and at the Closing Bell multiply your gains
 with portfolio hands and perks that trigger left to right. Beat the Boss Landlord every quarter,
 build your own market with Memos and seals, buy up a different town every run,

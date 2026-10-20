@@ -1,8 +1,8 @@
 // One atomic localStorage entry holds progression and the last playable checkpoint.
 // JSON duplicates company objects; reconnect hand certificates to their deck owners on load.
 export const SAVE_KEY='greataunt.meta.v1';
-export const RUN_VERSION=11;
-const SCENES=new Set(['news','play','resolve','shop','town','tycoon','ascend']);
+export const RUN_VERSION=12;
+const SCENES=new Set(['news','play','resolve','shop','town','tycoon','richest','ascend']);
 const ORIGINS=new Set(['news','play','resolve','shop']);
 export function checkpoint(run,scene,shop,rng){
   if(!run||run.dead||!SCENES.has(scene))return null;
@@ -23,7 +23,7 @@ export function readCheckpoint(saved){
       !Number.isInteger(r.idx)||r.idx<0||r.idx>r.hand.length||
       !Number.isInteger(r.resolvedDay)||r.resolvedDay<0||r.resolvedDay>r.day||
       (c.scene==='play'&&r.idx>=r.hand.length)||
-      (['resolve','shop','ascend'].includes(origin)&&(!r.result||r.resolvedDay!==r.day))||
+      (['resolve','shop','richest','ascend'].includes(origin)&&(!r.result||r.resolvedDay!==r.day))||
       (c.scene==='town'&&!ORIGINS.has(r.back))||
       (c.scene==='tycoon'&&(!r.tycoon||!ORIGINS.has(r.tycoonBack)))||
       (origin==='shop'&&!Array.isArray(c.shop)))return null;
