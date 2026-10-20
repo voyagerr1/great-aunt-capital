@@ -123,7 +123,9 @@ button.ghost{background:var(--cream)} button.red{background:var(--red);color:var
 .trait{font-size:19px;border:2px solid var(--steel);padding:1px 6px}
 .stats{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;align-items:center}
 .bar{display:flex;gap:3px}.bar i{width:18px;height:12px;background:var(--navy3);border:2px solid var(--ink)}.bar i.on{background:var(--yellow)}
-.hold{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:20px}
+.hold{display:grid;grid-template-columns:auto 48px 1fr auto;gap:8px;align-items:center;font-size:20px}
+.hold>.tab{text-align:right}
+.hold .wspark{width:48px}
 .hold button{padding:8px 10px;font-size:11px}
 .deal{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--cream);color:var(--ink);padding:8px;border:3px solid var(--ink)}
 .deal .val{font-size:28px;line-height:1}
@@ -240,6 +242,21 @@ button.ghost{background:var(--cream)} button.red{background:var(--red);color:var
 .co .tags{display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end}
 .co .tags i{font-style:normal;font-family:var(--display);font-size:7px;padding:2px 3px;background:var(--yellow);color:var(--ink)}
 .co .tags i.e{background:#7b4fa0;color:var(--cream)}
+/* Stock-app charts: sparklines of recent closes and Robinhood-style move tags */
+.spark .ln,.wspark .ln{fill:none;stroke-width:3;vector-effect:non-scaling-stroke}
+.ln.up{stroke:var(--green)} .ln.dn{stroke:var(--red)}
+.card .ln.up{stroke:#1d8a52} .card .ln.dn{stroke:#c23a36}
+.spark .base,.wspark .base{stroke:var(--steel);stroke-width:1.5;stroke-dasharray:3 4;vector-effect:non-scaling-stroke}
+.card .base{stroke:rgba(14,24,56,.35)}
+.cfoot .up{color:#1d8a52} .cfoot .down{color:#c23a36}
+.wspark{width:64px;height:26px;display:block}
+.co.wl{grid-template-columns:minmax(0,1fr) 64px auto;gap:10px}
+.wl .wn{display:flex;flex-direction:column;gap:4px;min-width:0}
+.wl .tags{justify-content:flex-start}
+.wl .wp{display:flex;flex-direction:column;align-items:flex-end;gap:3px;line-height:1}
+.mv{font-family:var(--display);font-size:9px;font-weight:700;padding:3px 4px;min-width:60px;text-align:center;border:2px solid var(--ink);white-space:nowrap}
+.mv.up{background:var(--green);color:var(--ink)} .mv.dn{background:var(--red);color:var(--cream)} .mv.new{background:var(--yellow);color:var(--ink)}
+.mv.old{background:transparent} .mv.old.up{color:var(--green);border-color:var(--green)} .mv.old.dn{color:var(--red);border-color:var(--red)}
 .pick .pickname{font-size:14px;color:var(--yellow);text-align:center;flex:1}
 button.sm{padding:6px 12px;font-size:12px;box-shadow:3px 3px 0 var(--shadow)}
 .seedin{font-family:var(--display);font-size:16px;padding:10px;background:var(--cream);color:var(--ink);border:3px solid var(--ink);text-transform:uppercase;-webkit-user-select:text;user-select:text;width:100%;box-sizing:border-box}

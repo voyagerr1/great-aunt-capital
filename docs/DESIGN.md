@@ -75,7 +75,11 @@ The best hand you qualify for (by current MULT) counts. Almanacs level a hand up
 ## The market deck
 - Each run starts with 20 companies spread across the 7 base sectors (Bernice: CRYPTO/MEME). Every morning a
   random handful is dealt. Companies keep their price, edition, stamp and seal; the certificate shows how often
-  you have seen it and its change since listing.
+  you have seen it and its last move (▲/▼).
+- **Charts.** Each company keeps its last 12 closes (`co.hist`), drawn as a sparkline on the certificate and in the
+  Ledger's Market tab (a watchlist sorted by movers or sector). Only dealt companies trade, so a newcomer arrives with
+  5 closes from before it joined your market, hashed from its serial (never `R()`, so charts don't change what a
+  seed deals). Charts show the past only. The news crawl lists the last close's movers. Listed shares (IPOs) chart too.
 - **Stamps** (`ENH`): Notarized (loses at most 10%), Haunted (copies the move of the certificate before it),
   Glass (×3 moves, 25% chance to shatter out of the market when bought), Hot Tip (+4 MULT when bought and up).
 - **Seals** (`SEALS`): Red (retrigger), Gold (buying pays half of tonight's rent), Blue (buying gives the

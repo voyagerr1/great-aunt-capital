@@ -121,7 +121,19 @@ function newCompany(sec,o={}){
   let a,b,tick;
   for(let k=0;k<10;k++){a=pick(N1);b=pick(N2);tick=(a.slice(0,2)+b.slice(0,2)).toUpperCase();if(!run.deck.some(c=>c.tick===tick))break}
   const ed='ed' in o?o.ed:rollEdition(), E=EDITIONS[ed]||{}, price=E.price?rr(...E.price):rr(3,400);
-  return {id:++run.coId,tick,name:`${a} ${b} ${pick(N3)}`,sec,vol:ed==='penny'?3:1+Math.floor(R()*3),price,list:price,ed,enh:o.enh||null,seal:null,seen:0,last:null,serial:Math.floor(rr(1000,99999))};
+  const co={id:++run.coId,tick,name:`${a} ${b} ${pick(N3)}`,sec,vol:ed==='penny'?3:1+Math.floor(R()*3),price,list:price,ed,enh:o.enh||null,seal:null,seen:0,last:null,lastDay:0,serial:Math.floor(rr(1000,99999))};
+  co.hist=preHistory(co); return co;
+}
+/* Price history: each company keeps its last HIST closes for the charts. Only dealt companies trade, so a newcomer
+   arrives with a few closes from before it joined your market. Those are hashed from its serial, not drawn from R(),
+   so charts never change what a seed deals. */
+const HIST=12;
+function preHistory(co){
+  let h=(co.serial*2654435761^co.id*40503)>>>0||1;
+  const rnd=()=>{h^=h<<13;h>>>=0;h^=h>>>17;h^=h<<5;h>>>=0;return h/4294967296};
+  let p=co.price; const out=[p];
+  for(let i=0;i<5;i++){p=Math.max(.01,p/(1+(rnd()*2-1)*VOL[co.vol]*.7));out.unshift(p)}
+  return out;
 }
 function buildDeck(){
   const bern=['CRYPTO','CRYPTO','CRYPTO','MEME','MEME'];
@@ -138,7 +150,7 @@ function newRun(o={}){
   const aunt=o.aunt||'mildred', mood=o.mood||0, seed=String(o.seed||makeSeed()).toUpperCase().slice(0,24);
   seedRng(seed);
   const town=shuffle(DISTRICT_POOL.slice()).slice(0,4);
-  run={v:8,seed,daily:o.daily||null,aunt,mood,day:0,cash:100000+25000*meta.up.allowance-(mood>=4?50000:0),peak:0,perks:[],cons:[],consMax:aunt==='twins'?3:2,
+  run={v:9,seed,daily:o.daily||null,aunt,mood,day:0,cash:100000+25000*meta.up.allowance-(mood>=4?50000:0),peak:0,perks:[],cons:[],consMax:aunt==='twins'?3:2,
     streak:0,reroll:5000,ventures:[],holdings:[],size:.25,props:{},hidx:1,hlast:0,town,lots:buildLots(town),deck:[],coId:0,
     hands:Object.fromEntries(HANDS.map(h=>[h.id,{lvl:1,played:0}])),sold:0,bought:0,bossesBeat:0,closes:0,arc:null,arcsDone:[],ring:0,pumped:null,
     sectors:SECTORS.filter(s=>!s.hidden).map(s=>s.id),heat:0,best:null,modal:null,log:[]};
@@ -217,7 +229,7 @@ function hintFor(c){
   const truth=c.verified||R()<rumorAcc();
   c.hint=truth?(c.up?'bull':'bear'):(c.up?'bear':'bull');
   if(fx('lie')&&!c.verified) c.hint=c.hint==='bull'?'bear':'bull';
-  c.rumor=pick(c.hint==='bull'?BULL:BEAR); c.spark=spark(c.hint);
+  c.rumor=pick(c.hint==='bull'?BULL:BEAR);
 }
 function makeNews(){
   const items=Object.entries(run.trends).map(([sec,dir])=>{const shown=(run.forced.includes(sec)||R()<newsAcc())?dir:-dir;return {sec,dir:shown,txt:pick(NEWS[sec][shown>0?'up':'down'])}});
@@ -270,7 +282,6 @@ function holdingNews(){
   const h=pick(run.holdings), shownUp=(has('whisper')||R()<newsAcc())?h.nextUp:!h.nextUp;
   return {hold:h.name,dir:shownUp?1:-1,txt:pick(shownUp?HOLD_UP:HOLD_DOWN).replace('{N}',h.name)};
 }
-function spark(h){let v=50,pts=[];for(let i=0;i<14;i++){v+=rr(-9,9)+(h==='bull'?1.2:-1.2);v=clamp(v,8,92);pts.push(v)}return pts}
 
 function decidePitch(invest){
   const p=run.pitch;
@@ -358,7 +369,7 @@ function resolveDay(){
   run.cash+=bought.reduce((s,c)=>s+c.stake,0)+net;
   const notes=[];
   // Companies remember their moves. Shattered Glass and collapsed companies leave the market.
-  run.hand.forEach(c=>{c.co.price=Math.max(.01,c.co.price*(1+c.r));c.co.last=c.r});
+  run.hand.forEach(c=>{const co=c.co;co.price=Math.max(.01,co.price*(1+c.r));co.last=c.r;co.lastDay=run.day;co.hist=[...co.hist,co.price].slice(-HIST)});
   run.delisted=[];
   run.deck=run.deck.filter(co=>{
     const card=run.hand.find(c=>c.co===co);
@@ -371,7 +382,7 @@ function resolveDay(){
   // Listed shares move (bigger swings in the first days after the IPO)
   run.holdings.forEach(h=>{
     const amp=h.age<2?1.7:1, move=(h.nextUp?rr(.05,.32):-rr(.05,.28))*amp;
-    h.last=move; h.value=Math.max(1,h.value*(1+move)); h.age++;
+    h.last=move; h.value=Math.max(1,h.value*(1+move)); h.age++; h.hist=[...h.hist,h.value].slice(-HIST);
   });
   const qres=[];
   if(isBoss(run.day)) run.ventures=run.ventures.filter(v=>{
@@ -380,7 +391,7 @@ function resolveDay(){
     if(o.kind==='bust'){run.perks.forEach(p=>{if(p.id==='parachute')p.st.n=(p.st.n||0)+1});qres.push({kind:'bust',name:v.name,txt:pick(BUSTS),amt:v.paid});return false}
     if(o.kind==='acq'){const pay=Math.round(v.ask*o.mult);run.cash+=pay;qres.push({kind:'acq',name:v.name,txt:`Bought by ${pick(ACQUIRERS)}.`,amt:pay,mult:o.mult});return false}
     if(o.kind==='ipo'){const val=Math.round(v.ask*o.mult),q=(v.st.team+v.st.product+v.st.market)/15;
-      run.holdings.push({name:v.name,basis:v.ask,value:val,age:0,last:0,drift:(q-.55)*.12-v.st.hype*.006});
+      run.holdings.push({name:v.name,basis:v.ask,value:val,hist:[v.ask,val],age:0,last:0,drift:(q-.55)*.12-v.st.hype*.006});
       qres.push({kind:'ipo',name:v.name,txt:'Rang the opening bell. Your shares now trade daily.',amt:val,mult:o.mult});return false}
     if(o.kind==='pivot'){const to=pick(PIVOT_TO); v.idea=`${pick(IDEA_X)} for ${to}`; v.m*=o.g;
       STATS.forEach(k=>v.st[k]=clamp(v.st[k]+Math.floor(rr(-2,3)),1,5));
@@ -495,7 +506,7 @@ function useMemo(id){
   else if(id==='haunt'){co.enh='haunted';if(run.idx>0){c.up=run.hand[run.idx-1].up;hintFor(c)}}
   else if(id.endsWith('seal')) co.seal=id.replace('seal','');
   else if(id==='shred'){if(run.deck.length<=8){toast('The market needs at least 8 companies.');return false}run.deck=run.deck.filter(x=>x!==co);c.shredded=true;toast(`${co.tick} shredded. Gone for good.`);return 'pass'}
-  else if(id==='clone'){run.deck.push({...co,id:++run.coId,seen:0,name:co.name.endsWith(' II')?co.name:co.name+' II',serial:Math.floor(rr(1000,99999))});toast(`${co.tick} copied into the market.`)}
+  else if(id==='clone'){run.deck.push({...co,hist:[...co.hist],id:++run.coId,seen:0,name:co.name.endsWith(' II')?co.name:co.name+' II',serial:Math.floor(rr(1000,99999))});toast(`${co.tick} copied into the market.`)}
   else if(id==='merge'){const nx=run.hand[run.idx+1];if(!nx){toast('A Merger needs another certificate after this one.');return false}
     if(co.ed)nx.co.ed=co.ed;if(co.enh)nx.co.enh=co.enh;if(co.seal)nx.co.seal=co.seal;run.deck=run.deck.filter(x=>x!==co);c.shredded=true;toast(`${co.tick} merged into ${nx.co.tick}.`);return 'pass'}
   else if(id==='pump'){run.pumped=co.sec;toast(`${co.sec} will trend up tomorrow.`)}
@@ -518,6 +529,16 @@ function useEnv(id){
 const app=typeof document!=='undefined'?document.getElementById('app'):null;
 let headless=!app;   // sims turn rendering off for speed
 const secChip=id=>`<span class="sec" style="background:${S(id).c}">${id}</span>`;
+// Stock-app bits: a move like "▲ 4.2%" and a sparkline of closes, with a dotted line at the first close.
+const chg=r=>`<span class="${r>=0?'up':'down'}">${r>=0?'▲':'▼'} ${Math.abs(r*100).toFixed(1)}%</span>`;
+const mvTag=(r,cls='')=>`<span class="mv ${r>=0?'up':'dn'} ${cls}">${r>=0?'▲':'▼'} ${Math.abs(r*100).toFixed(1)}%</span>`;
+function sparkSVG(hist,cls='spark'){
+  const n=hist.length, lo=Math.min(...hist), hi=Math.max(...hist);
+  const y=v=>(hi>lo?88-(v-lo)/(hi-lo)*76:50).toFixed(1), x=i=>(n<2?200:i/(n-1)*200).toFixed(1);
+  return `<svg class="${cls}" viewBox="0 0 200 100" preserveAspectRatio="none"><line class="base" x1="0" x2="200" y1="${y(hist[0])}" y2="${y(hist[0])}"/><polyline class="ln ${hist[n-1]>=hist[0]?'up':'dn'}" points="${hist.map((v,i)=>`${x(i)},${y(v)}`).join(' ')}"/></svg>`;
+}
+const lastClose=()=>Math.max(0,...run.deck.map(c=>c.lastDay||0));
+const dealSize=()=>4+meta.up.hand+(has('daytrader')?1:0);
 function hud(){
   const rent=rentTonight(), boss=isBoss(run.day), fake=run.perks.filter(p=>p.ed==='fake').length;
   const cells=run.perks.map((p,i)=>{const d=P(p.id);
@@ -575,8 +596,6 @@ function tv(host,chyronTag,chyronTxt,crawl,net,heat=0){
 }
 function cardHTML(c,back){
   const co=c.co, E=ED(co), risk='▮'.repeat(co.vol)+'▯'.repeat(3-co.vol);
-  const pts=c.spark.map((v,i)=>`${(i/13*200).toFixed(1)},${(100-v).toFixed(1)}`).join(' ');
-  const lineCol=c.spark[13]>=c.spark[0]?'#1d8a52':'#c23a36';
   const chip=(txt,bg,fg='var(--ink)')=>`<span class="chip" style="background:${bg};color:${fg}">${txt}</span>`;
   const chips=[chip(co.sec,S(co.sec).c),chip('RISK '+risk,'transparent'),co.ed?chip(E.name,'var(--ink)','var(--yellow)'):'',co.enh?chip(ENH[co.enh].name,'#5b3c88','var(--cream)'):'',
     co.seal?chip(SEALS[co.seal].name,SEALS[co.seal].c,co.seal==='gold'?'var(--ink)':'var(--cream)'):'',c.rex?chip('REX: '+c.rex,'var(--red)','var(--cream)'):'',
@@ -585,24 +604,23 @@ function cardHTML(c,back){
   const rum=noRum
     ?`<span class="tag" style="background:var(--ink)">NO FILINGS</span><br>${E.noRumor?E.txt:'The Fortune Teller took every filing.'}`
     :`<span class="tag" style="background:${c.hint==='bull'?'#1d8a52':'#c23a36'}">${c.verified?'VERIFIED ':''}RUMOR · ${c.hint==='bull'?'BULLISH':'BEARISH'}</span><br>${c.rumor}${co.ed?` <span class="edtxt">${E.txt}</span>`:''}${co.enh?` <span class="edtxt">${ENH[co.enh].txt}</span>`:''}`;
-  const life=co.price/co.list-1;
   return `<div class="card ${co.ed?'ed-'+co.ed:''} ${co.enh?'enh-'+co.enh:''} ${back?'back':''}"><div class="frame">
       <div class="certhead"><span>CERTIFICATE OF SHARES</span><span>No. ${String(co.serial).padStart(5,'0')}</span></div>
       <div class="seal" style="background:${S(co.sec).c}">${co.sec.slice(0,4)}</div>
       ${co.seal?`<div class="wax" style="background:${SEALS[co.seal].c}"></div>`:''}
       <div><div class="tick">${co.tick}</div><div class="cname">${co.name}</div></div>
       <div class="chips">${chips}</div>
-      <svg class="spark" viewBox="0 0 200 100" preserveAspectRatio="none"><polyline fill="none" stroke="${lineCol}" stroke-width="4" points="${pts}"/></svg>
+      ${sparkSVG(co.hist)}
       <div class="rumor">${rum}</div>
-      <div class="cfoot tab"><span>${fmtP(co.price)}/sh</span><span>${co.seen>1?`seen ${co.seen}x · <span class="${life>=0?'gup':'gdn'}">${pct(life)}</span>`:'new listing'}</span><span>${run.hand.length-run.idx} left</span></div>
+      <div class="cfoot tab"><span>${fmtP(co.price)}/sh</span><span>${co.lastDay?`${chg(co.last)} · seen ${co.seen}x`:'first look'}</span><span>${run.hand.length-run.idx} left</span></div>
       ${back?'':'<div class="stamp buy">BOUGHT</div><div class="stamp pass">PASSED</div>'}
   </div></div>`;
 }
 function holdingsBox(){
   if(!run.holdings.length) return '';
   return `<div class="box panel col" style="gap:6px"><div class="lbl">Your listed shares</div>
-    ${run.holdings.map((h,i)=>`<div class="hold"><span class="d" style="font-weight:700;font-size:12px">${h.name}</span>
-      <span class="tab ${h.value>=h.basis?'up':'down'}">${fmt(h.value)} <span class="muted">(${(h.value/h.basis).toFixed(1)}x)</span>${h.age?` <span class="${h.last>=0?'up':'down'}">${pct(h.last)}</span>`:''}</span>
+    ${run.holdings.map((h,i)=>`<div class="hold"><span class="d" style="font-weight:700;font-size:12px">${h.name}</span>${sparkSVG(h.hist,'wspark')}
+      <span class="tab ${h.value>=h.basis?'up':'down'}">${fmt(h.value)} <span class="muted">(${(h.value/h.basis).toFixed(1)}x)</span>${h.age?` ${chg(h.last)}`:''}</span>
       <button class="green" data-act="sell" data-i="${i}">Sell</button></div>`).join('')}</div>`;
 }
 function portfolioBox(){
@@ -620,8 +638,8 @@ function portfolioBox(){
       ${run.ventures.length?row(`Startups · ${run.ventures.length}`,S0.vent,delta(d('vent')),run.ventures.map(v=>`${v.name} ${v.m.toFixed(2)}x · ${v.eq}%`).join(' · ')):''}
       ${run.holdings.length?row(`Listed shares · ${run.holdings.length}`,S0.hold,delta(d('hold'))):''}
     </div>
-    ${run.holdings.map((h,i)=>`<div class="hold"><span class="d" style="font-weight:700;font-size:12px">${h.name}</span>
-      <span class="tab ${h.value>=h.basis?'up':'down'}">${fmtK(h.value)} <span class="muted">(${(h.value/h.basis).toFixed(1)}x)</span>${h.age?` <span class="${h.last>=0?'up':'down'}">${pct(h.last)}</span>`:''}</span>
+    ${run.holdings.map((h,i)=>`<div class="hold"><span class="d" style="font-weight:700;font-size:12px">${h.name}</span>${sparkSVG(h.hist,'wspark')}
+      <span class="tab ${h.value>=h.basis?'up':'down'}">${fmtK(h.value)} <span class="muted">(${(h.value/h.basis).toFixed(1)}x)</span>${h.age?` ${chg(h.last)}`:''}</span>
       <button class="green" data-act="sell" data-i="${i}">Sell</button></div>`).join('')}
   </div>`;
 }
@@ -649,8 +667,8 @@ function notesStrip(){
 }
 const handLabel=id=>id?`${H(id).name} <span class="mlt">${fmtM(handMult(id))}</span>`:'<span class="muted">no hand yet</span>';
 function stepHTML(s){
-  const v=s.k==='card'?`<span class="up">${pct(s.r)}</span><span class="up">+${fmtK(s.v)}</span>`
-    :s.k==='loss'?`<span class="down">${pct(s.r)}</span><span class="down">${fmtK(s.v)}</span>`
+  const v=s.k==='card'?`${chg(s.r)}<span class="up">+${fmtK(s.v)}</span>`
+    :s.k==='loss'?`${chg(s.r)}<span class="down">${fmtK(s.v)}</span>`
     :s.k==='add'?`<span></span><span class="mlt">+${fmtM(s.v)} MULT</span>`
     :s.k==='x'?`<span></span><span class="xm">x${fmtM(s.v)} MULT</span>`
     :s.k==='cash'?`<span></span><span class="up">+${fmtK(s.v)}</span>`
@@ -751,7 +769,9 @@ function renderScene(){
     <button data-act="title">Back</button>`; return;
   }
   if(scene==='news'){
-    const crawl=run.hand.length?run.hand.map(c=>`${c.co.tick} ${c.spark[13]>=c.spark[0]?'▲':'▼'} ${(Math.abs(c.spark[13]-c.spark[0])/10).toFixed(2)}`).join(' · '):'MARKET CLOSED · MARKET CLOSED';
+    const lc=lastClose(), movers=run.deck.filter(co=>lc&&co.lastDay===lc).sort((a,b)=>Math.abs(b.last)-Math.abs(a.last));
+    const crawl=movers.length?'LAST CLOSE · '+movers.map(co=>`${co.tick} ${fmtP(co.price)} ${co.last>=0?'▲':'▼'} ${Math.abs(co.last*100).toFixed(1)}%`).join(' · ')
+      :run.hand.length?'OPENING BELL · '+run.hand.map(c=>`${c.co.tick} ${fmtP(c.co.price)} NEW`).join(' · '):'MARKET CLOSED · MARKET CLOSED';
     const ev=run.event, tag=ev.isBoss?(ev.final?'FINAL BOSS':'BOSS LANDLORD'):ev.id==='quiet'?'MARKET MORNING':'BREAKING';
     const extra=[run.ate?`Mildred's Cat ate your ${run.ate}.`:'',...(run.delisted||[])].filter(Boolean);
     app.innerHTML=hud()+`<div class="col scroll grow">
@@ -804,7 +824,7 @@ function renderScene(){
       <div id="after" class="col" style="gap:8px">
         <div class="total tab">${fmtK(r.gains)} x ${fmtM(r.mult)} = <b class="${r.total>0?'up':''}">${fmt(r.total)}</b></div>
         ${r.tax?`<div class="down">The Tax Man took ${fmt(r.tax)}.</div>`:''}
-        ${passed.length?`<div class="passed muted">Passed: ${passed.map(c=>`${c.co.tick} <span class="${c.r>=0?'up':'down'}">${pct(c.r)}</span>${c.fraud?' (fraud)':''}`).join(' · ')}</div>`:''}
+        ${passed.length?`<div class="passed muted">Passed: ${passed.map(c=>`${c.co.tick} ${chg(c.r)}${c.fraud?' (fraud)':''}`).join(' · ')}</div>`:''}
         ${run.qres?`<div class="vres yel">★ End of Q${run.day/QUARTER}. Your startups have filed their quarterly reports.</div>`:''}
         ${holdingsBox()}
         <div class="sum tab">
@@ -860,10 +880,16 @@ function renderScene(){
     let body='';
     if(tab==='hands') body=HANDS.map(h=>{const s=run.hands[h.id];return `<div class="box item hand" style="grid-template-columns:1fr auto">
       <div><div class="n">${h.name} <span class="muted">lvl ${s.lvl}</span></div><div class="ds">${h.txt} Played ${s.played}x.</div></div><div class="mlt big">${fmtM(handMult(h.id))}</div></div>`}).join('');
-    if(tab==='market') body=`<div class="muted" style="font-size:18px">${run.deck.length} companies. Each morning ${4+meta.up.hand+(has('daytrader')?1:0)} are dealt.</div>`+run.deck.slice().sort((a,b)=>a.sec.localeCompare(b.sec)||a.tick.localeCompare(b.tick)).map(co=>{const life=co.price/co.list-1;
-      return `<div class="box co"><span>${secChip(co.sec)}</span><span class="d t">${co.tick}</span><span class="muted">${'▮'.repeat(co.vol)}</span>
-      <span class="tags">${co.ed?`<i>${EDITIONS[co.ed].name}</i>`:''}${co.enh?`<i class="e">${ENH[co.enh].name}</i>`:''}${co.seal?`<i style="background:${SEALS[co.seal].c}">${SEALS[co.seal].name}</i>`:''}</span>
-      <span class="tab ${life>=0?'up':'down'}">${fmtP(co.price)}</span></div>`}).join('');
+    if(tab==='market'){const sort=run.wlSort||'movers', lc=lastClose();
+      const list=run.deck.slice().sort(sort==='movers'?(a,b)=>(b.lastDay===lc)-(a.lastDay===lc)||Math.abs(b.last||0)-Math.abs(a.last||0)||a.tick.localeCompare(b.tick)
+        :(a,b)=>a.sec.localeCompare(b.sec)||a.tick.localeCompare(b.tick));
+      body=`<div class="row between"><span class="muted" style="font-size:18px">${run.deck.length} companies · ${dealSize()} dealt a day</span>
+        <span class="row" style="gap:6px">${['movers','sector'].map(k=>`<button class="sm ${k===sort?'':'ghost'}" data-act="wlsort" data-id="${k}">${k}</button>`).join('')}</span></div>`
+      +list.map(co=>`<div class="box co wl"><span class="wn"><span class="row" style="gap:6px">${secChip(co.sec)}<span class="d t">${co.tick}</span><span class="muted">${'▮'.repeat(co.vol)}</span></span>
+        ${co.ed||co.enh||co.seal?`<span class="tags">${co.ed?`<i>${EDITIONS[co.ed].name}</i>`:''}${co.enh?`<i class="e">${ENH[co.enh].name}</i>`:''}${co.seal?`<i style="background:${SEALS[co.seal].c}">${SEALS[co.seal].name}</i>`:''}</span>`:''}</span>
+        ${sparkSVG(co.hist,'wspark')}
+        <span class="wp tab"><span>${fmtP(co.price)}</span>${co.lastDay?mvTag(co.last,co.lastDay===lc?'':'old'):'<span class="mv new">NEW</span>'}</span></div>`).join('')
+      +`<div class="muted" style="font-size:17px">Only dealt companies trade. Solid tags moved at the last Closing Bell.</div>`}
     if(tab==='run'){const A=AUNTS.find(a=>a.id===run.aunt),arc=run.arc&&ARCS.find(a=>a.id===run.arc.id);
       body=`<div class="box panel col" style="gap:4px">
         <div class="row between"><span class="muted">Seed</span><span class="d yel">${run.seed}</span></div>
@@ -961,6 +987,7 @@ if(app) app.addEventListener('click',e=>{
   else if(a==='csell'){const k=run.cons[run.modal.i];if(k){run.cash+=Math.round(consPrice(k.k)/2);run.cons.splice(run.modal.i,1);run.modal=null;render()}}
   else if(a==='book'){if(scene!=='book')run.back=scene;scene='book';render()}
   else if(a==='tab'){run.bookTab=id;render()}
+  else if(a==='wlsort'){run.wlSort=id;render()}
   else if(a==='next') startDay();
   else if(a==='shop') openShop();
   else if(a==='over'){scene='over';render()}

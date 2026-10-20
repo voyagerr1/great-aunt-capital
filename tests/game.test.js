@@ -70,6 +70,17 @@ describe('systems', () => {
     expect(b.deck.map(c => c.tick).join()).toBe(ticks);
     expect(b.town.map(d => d.id).join()).toBe(town);
     expect(b.hand.map(c => c.co.tick).join()).toBe(hand);
+    expect(b.deck.map(c => c.hist.join()).join()).toBe(a.deck.map(c => c.hist.join()).join());
+  });
+  it('companies keep a price chart that grows when they trade', () => {
+    const run = fresh({ seed: 'CHART-1' });
+    run.deck.forEach(co => { expect(co.hist.length).toBeGreaterThan(1); expect(co.hist.at(-1)).toBe(co.price); expect(co.lastDay).toBe(0); });
+    const dealt = run.hand.map(c => c.co), before = dealt.map(co => co.hist.length);
+    run.hand.slice().forEach(() => api.choose(false));
+    dealt.filter(co => run.deck.includes(co)).forEach(co => {
+      expect(co.hist.length).toBe(Math.min(12, before[dealt.indexOf(co)] + 1));
+      expect(co.hist.at(-1)).toBe(co.price); expect(co.lastDay).toBe(1);
+    });
   });
   it('every event, boss and story step can play out a full day', () => {
     const steps = ARCS.flatMap(a => a.steps.flatMap(s => s.pick || [s])).map((s, i) => ({ id: 'arc' + i, name: 'Arc', txt: s.txt, fx: s.fx }));
@@ -77,7 +88,7 @@ describe('systems', () => {
       const run = fresh(); run.day = 4; run.cash = 5e5;
       run.props[run.lots[0].id] = { lvl: 1, dmg: 1 };
       run.perks.push(api.newPerk('gnome'), api.newPerk('larry'));
-      run.holdings.push({ name: 'Testly', basis: 1e4, value: 2e4, age: 3, last: 0, drift: 0 });
+      run.holdings.push({ name: 'Testly', basis: 1e4, value: 2e4, hist: [1e4, 2e4], age: 3, last: 0, drift: 0 });
       api.setEvent(ev);
       run.hand.forEach(() => api.choose(true));
       expect(Number.isFinite(run.cash)).toBe(true);
