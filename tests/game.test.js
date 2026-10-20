@@ -15,10 +15,11 @@ const fresh = (o = {}) => { api.setHeadless(true); api.resetMeta(); api.newRun(o
 const plainUp = c => { Object.assign(c.co, { ed: null, enh: null, seal: null, sec: 'TECH', vol: 2, price: 10 }); c.up = true; c.fraud = false; };
 
 describe('content', () => {
-  it('has 16 lots in 4 districts with rising prices', () => {
+  it('has 16 lots in 4 districts with rising prices, and enough districts for a town', () => {
     expect(LOTS).toHaveLength(16);
     for (let i = 1; i < LOTS.length; i++) expect(LOTS[i].price).toBeGreaterThan(LOTS[i - 1].price);
     for (const d of DISTRICT_POOL) expect(d.lots).toHaveLength(4);
+    expect(DISTRICT_POOL.length).toBeGreaterThanOrEqual(4);
   });
   it('has unique ids and codes', () => {
     const uniq = (a, k) => expect(new Set(a.map(x => x[k])).size).toBe(a.length);
@@ -86,9 +87,8 @@ describe('systems', () => {
     const steps = ARCS.flatMap(a => a.steps.flatMap(s => s.pick || [s])).map((s, i) => ({ id: 'arc' + i, name: 'Arc', txt: s.txt, fx: s.fx }));
     for (const ev of EVENTS.concat(BOSSES, FINALS, steps)) {
       const run = fresh(); run.day = 4; run.cash = 5e5;
-      run.props[run.lots[0].id] = { lvl: 1, dmg: 1 };
+      run.props[run.lots[0].id] = { day: 0 };
       run.perks.push(api.newPerk('gnome'), api.newPerk('larry'));
-      run.holdings.push({ name: 'Testly', basis: 1e4, value: 2e4, hist: [1e4, 2e4], age: 3, last: 0, drift: 0 });
       api.setEvent(ev);
       run.hand.forEach(() => api.choose(true));
       expect(Number.isFinite(run.cash)).toBe(true);
@@ -146,15 +146,6 @@ describe('systems', () => {
     api.useCons(0);
     expect(api.handMult('pair')).toBe(before + 1);
   });
-  it('follow-on rounds keep or dilute your stake', () => {
-    const run = fresh(); run.cash = 1e6;
-    const mk = name => { run.ventures.push({ name, idea: 'x', ask: 1e4, paid: 1e4, eq: 20, st: { team: 3, product: 3, market: 3, hype: 3 }, m: 2, round: 1, since: 0, follow: 5000 }); };
-    mk('Paid'); mk('Passed');
-    api.followOn('Paid', true); api.followOn('Passed', false);
-    const [a, b] = run.ventures;
-    expect(a.ask * a.m).toBe(25000); expect(a.eq).toBe(20); expect(a.follow).toBe(null);
-    expect(b.ask * b.m).toBe(15000); expect(b.eq).toBe(15);
-  });
   it('big orders cut gains', () => {
     const run = fresh();
     const c = run.hand[0]; plainUp(c); c.co.vol = 3; c.co.price = 1;
@@ -168,17 +159,17 @@ describe('systems', () => {
 });
 
 describe('every screen renders', () => {
-  it('walks through setup, a full quarter, the ledger, shops, town and game over', () => {
+  it('walks through setup, a full quarter, the sheets, shops, town and game over', () => {
     const app = document.getElementById('app');
     api.setHeadless(false); api.resetMeta();
     for (const s of ['title', 'setup', 'help', 'will']) { api.setScene(s); api.render(); expect(app.innerHTML.length).toBeGreaterThan(100); }
     api.newRun(); api.render();
-    expect(app.innerHTML).toContain('Your portfolio');
+    expect(app.innerHTML).toContain("Today's tips");
     const run = api.run;
-    run.pitch = run.pitch || api.makePitch();
     run.perks.push(api.newPerk('cat', 'holo')); run.cons.push({ k: 'memo', id: 'tip' });
-    for (const s of ['pitch', 'play', 'town', 'news', 'book']) { api.setScene(s); api.render(); expect(app.innerHTML.length).toBeGreaterThan(100); }
-    for (const t of ['hands', 'market', 'run']) { run.bookTab = t; api.render(); expect(app.innerHTML).toContain('LEDGER'); }
+    for (const s of ['play', 'town', 'news']) { api.setScene(s); api.render(); expect(app.innerHTML.length).toBeGreaterThan(100); }
+    run.modal = { kind: 'hands' }; api.setScene('play'); api.render(); expect(app.innerHTML).toContain('Cornered Market');
+    run.modal = { kind: 'boss' }; api.render(); expect(app.innerHTML).toContain(run.boss.name);
     run.modal = { kind: 'perk', i: 0 }; api.setScene('news'); api.render(); expect(app.innerHTML).toContain('Compound Cat');
     run.modal = { kind: 'cons', i: 0 }; api.render(); expect(app.innerHTML).toContain('Insider Tip');
     run.modal = null;
@@ -189,7 +180,6 @@ describe('every screen renders', () => {
       api.openShop(); expect(app.innerHTML).toMatch(/NEWSSTAND|THE BROKER/);
       if (d < 3) api.startDay();
     }
-    if (run.qres) { api.setScene('quarter'); api.render(); }
     run.cash = 1e9; run.lots.forEach(l => api.buyLot(l.id));
     expect(run.tycoon).toBe(true);
     expect(app.innerHTML).toContain('TYCOON');

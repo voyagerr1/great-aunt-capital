@@ -16,7 +16,6 @@ export const PERK_FX={
   pump:{end:x=>{if(x.run.streak)x.add(x.run.streak,'Pump Club')}},
   ponzi:{end:x=>{if(x.run.sold)x.add(2*x.run.sold,'Ponzi Pete')}},
   mcat:{end:x=>x.x(3,"Mildred's Cat")},
-  parachute:{end:(x,p)=>{const m=1+.5*(p.st.n||0);if(m>1)x.x(m,'Golden Parachute')}},
   bag:{end:x=>{if(x.bought.some(c=>c.eff<0))x.add(3,'Bagholder')}},
   clock:{end:x=>{if(x.run.day%2===0)x.x(2,'Broken Clock')}},
   specialist:{end:x=>{if(['sweep','corner','full'].includes(x.hand))x.x(2,'Sector Specialist')}},

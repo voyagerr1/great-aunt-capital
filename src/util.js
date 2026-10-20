@@ -26,7 +26,6 @@ export function big(a){
 export const fmt=n=>{const a=Math.abs(n),sg=n<0?'-':'';if(!isFinite(a))return 'naneinf';return a<1e12?sg+'$'+Math.round(a).toLocaleString('en-US'):sg+'$'+big(a)};
 export const fmtK=n=>{const a=Math.abs(n),sg=n<0?'-':'';if(!isFinite(a))return 'naneinf';return a<1e3?sg+'$'+Math.round(a):a<1e6?sg+'$'+Math.round(a/1e3)+'K':sg+'$'+big(a)};
 export const fmtM=m=>!isFinite(m)?'naneinf':m<100?String(Math.round(m*10)/10):m<1e4?String(Math.round(m)):big(m);   // MULT display
-export const QUARTER=4;            // days per quarter (startup reports + broker visit); the last day is a Boss Landlord
+export const QUARTER=4;            // days per quarter; the last day is a Boss Landlord, then the Broker
 export const SIZES=[.1,.25,.5,1];   // position sizes as a share of morning cash (1 = max)
-export const ROUNDS=['Seed','Series A','Series B','Series C','Series D'];
 export const pct=r=>(r>=0?'+':'')+Math.round(r*100)+'%';

@@ -1,7 +1,7 @@
 {
   "name": "great-aunt-capital",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "description": "Pixel roguelite: turn Great Aunt Mildred's $100,000 into a town-owning empire.",
   "scripts": {
