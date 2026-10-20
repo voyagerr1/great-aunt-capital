@@ -50,10 +50,10 @@ describe('player decision clarity',()=>{
     expect(document.querySelector('.account-window').inert).toBe(true);
     el('closemodal').click();expect(document.activeElement.dataset.act).toBe('inventory');
   });
-  it('explains why full item pockets disable a purchase',()=>{
-    api.run.cash=1e6;api.run.cons=[{k:'alm',id:'single'},{k:'alm',id:'pair'}];api.openShop();show('shop');
+  it('explains why an item that cannot take effect is disabled',()=>{
+    api.run.cash=1e6;api.run.perks=[];api.openShop();api.shop.length=0;api.shop.push({t:'cons',k:'env',id:'takeover',price:1000});show('shop');
     expect(el('buyoffer').disabled).toBe(true);
-    expect(document.getElementById('offerReason-0').textContent).toContain('Items full');
+    expect(document.getElementById('offerReason-0').textContent).toContain('Needs 2 perks');
   });
 });
 
@@ -61,7 +61,7 @@ describe('safe result and restart controls',()=>{
   it('opens complete stock modifiers without submitting a drag trade',()=>{
     vi.useFakeTimers();
     try{
-      const r=api.run,c=r.hand[0];Object.assign(c.co,{ed:'gold',enh:'glass',seal:'red'});c.short=true;c.split=true;show('play');
+      const r=api.run,c=r.hand[0];Object.assign(c.co,{ed:'gold',enh:'glass',seal:'red'});c.co.split=true;show('play');
       const card=document.querySelector('.card'),capture=vi.fn();card.setPointerCapture=capture;
       const button=el('stock');
       button.dispatchEvent(Object.assign(new Event('pointerdown',{bubbles:true}),{clientX:10,clientY:10,pointerId:1}));
@@ -70,7 +70,7 @@ describe('safe result and restart controls',()=>{
       vi.advanceTimersByTime(250);expect(capture).not.toHaveBeenCalled();expect(r.idx).toBe(0);
       const cash=r.cash,state=rngState();button.click();
       const details=document.querySelector('.sheet').textContent;
-      for(const label of ['GOLD LEAF','GLASS','RED SEAL','Short position','Split ×2'])expect(details).toContain(label);
+      for(const label of ['GOLD LEAF','GLASS','RED SEAL','Split ×2'])expect(details).toContain(label);
       expect(details).toContain('Moves 3x');expect(r.idx).toBe(0);expect(r.cash).toBe(cash);expect(rngState()).toBe(state);
     }finally{vi.useRealTimers()}
   });

@@ -17,7 +17,7 @@ The desktop account sidebar stacks above the market on phones. No CRT overlay or
 ## Run setup
 - **Aunts** (starting decks): Your Great Aunt (classic), The Crypto Aunt (CRYPTO/MEME market, moves 1.5x; 3 runs),
   The Frugal Aunt ($25K + the cheapest lot in district 2, no market on day 1; last 10 days),
-  The Twin Aunts (+2 broker offers, 3rd consumable slot, rent +20%; own a district),
+  The Twin Aunts (+2 broker offers, +1 Newsstand item, rent +20%; own a district),
   The Haunted Aunt ($10K + 10% of best peak, 4 Haunted companies; reach $5M).
 - **Her mood** (stakes, cumulative): Pleased → Concerned (rent +25%) → Disappointed (rumors −10%)
   → Furious (perks +50% price, one fewer offer) → Haunting You (−$50K start, Final Boss every
@@ -31,7 +31,7 @@ The desktop account sidebar stacks above the market on phones. No CRT overlay or
 2. **Market.** 4 certificates (+1 per Longer Ticker Tape level, +1 Day Trader) dealt from **your market deck**.
    Pick a position size and swipe. The play screen shows your hand so far and what this buy would make it.
 3. **Closing Bell.** The scoring tally (below). Then property income, rent, and on boss days the bounty.
-4. **Newsstand** every day (3 consumables). On boss days it is **the Broker**: 3 perks + 2 consumables.
+4. **Newsstand** every day (3 items). On boss days it is **the Broker**: 3 perks + 2 items. Items take effect when bought.
 
 ## The Closing Bell (scoring)
 ```
@@ -83,19 +83,23 @@ The best hand you qualify for (by current MULT) counts. Almanacs level a hand up
   seed deals). Charts show the past only. The news crawl lists the last close's movers.
 - **Stamps** (`ENH`): Notarized (loses at most 10%), Haunted (copies the move of the certificate before it),
   Glass (×3 moves, 25% chance to shatter out of the market when bought), Hot Tip (+4 MULT when bought and up).
-- **Seals** (`SEALS`): Red (retrigger), Gold (buying pays half of tonight's rent), Blue (buying gives the
-  Almanac for today's hand).
+- **Seals** (`SEALS`): Red (retrigger), Gold (buying pays half of tonight's rent), Blue (buying levels up
+  today's hand).
 - A company whose price falls below 15% of its listing price, or turns out to be a fraud, is delisted.
   The market is topped back up to 12 companies.
 - Story arcs can add hidden sectors (ALIEN, BEES) with 3 new companies.
 
-## Consumables (2 pockets; Twin Aunts 3)
-- **Memos** (`MEMOS`, $5K × inflation): most apply to the certificate in front of you: Insider Tip, Short Sell,
-  Stock Split, Gold Leaf, Notary Stamp, Glass Job, Seance, Hot Tip, Red/Gold/Blue Seal, Shredder (remove from
-  market), Photocopier (clone), Merger (move edition/stamp/seal to the next certificate), Pump (sector up tomorrow).
+## Items (all passive)
+Nothing is carried or activated. Every item takes effect the moment you buy it, and the shelf says exactly what it
+will do. An item that cannot take effect (an envelope that needs perks you lack, a memo whose company left the
+market) cannot be bought, and the shelf says why.
+- **Memos** (`MEMOS`, $5K × inflation): stamp one company in your market, named on the shelf. The target is a
+  stock you bought today when there is one, else any company. Stock Split (that company's buys count double for
+  good, both ways), Gold Leaf, Notary Stamp, Glass Job, Seance, Hot Tip, Red/Gold/Blue Seal, Shredder (your worst
+  performer leaves the market), Photocopier (copies your best performer), Paid Influencer (its sector up tomorrow).
 - **Almanacs** ($4K × inflation): +1 level to one hand. Half of them favor your most-played hand.
 - **Brown Envelopes** ($10K × inflation): Legendary Tip (Legendary perk, lose half your cash), Hostile Takeover,
-  Black Swan (all hands +1), Shell Company (3 Glass companies), Counterfeit, Insider Ring (3 days of true rumors),
+  Black Swan (all hands +1), Shell Company (3 Glass companies), Counterfeit, Insider Ring (next 3 days of true rumors),
   Offshore Will (copy one perk, destroy the rest), Offshore Account (3 nights of rent now, rent 1.5x to quarter end).
 - Inflation = `max(1, baseRent(day) / $12K)`, so prices keep pace with rent.
 
@@ -113,7 +117,7 @@ stock bought), Great Aunt's Ghost (x1 per 4 days).
 - Bosses (`BOSSES`): The Goose, The Auditor, The Funeral Home, The Shortseller, Blackout Barry,
   Rex Shouter Himself, The Tax Man, The Hedge Fund Bro, The Margin Clerk, Wall Street, The SEC Investigator, The Repo Man.
 - Final Bosses every 4th quarter (`FINALS`): The Estate Accountant, The Family Lawyer, The Estranged Cousin, The Executor.
-- Survive: bounty of one night's rent, a free Memo, +1 bosses beaten (Lawn Gnome, pearls).
+- Survive: bounty of one night's rent, a free Memo applied to one of today's buys, +1 bosses beaten (Lawn Gnome, pearls).
 
 ## Events and story arcs
 - One event per day (day 1 is quiet, boss days use the boss). Each event is data with `fx` (keys listed above
@@ -169,7 +173,7 @@ it moves no money and draws nothing from the seeded RNG (`npm run sim` output is
 ## Meta progression (The Will)
 Pearls on death = (days − 1 + ⌊3·log2(peak / $100K)⌋ + bosses beaten + 10 if Tycoon) × (1 + 0.25 × mood).
 Upgrades: Bigger Allowance, Longer Ticker Tape, Premium Cable, Better Gossip, Broker Friend,
-Old Family Deed, Family Heirloom, Rent Control, Bigger Pockets (start with an Almanac).
+Old Family Deed, Family Heirloom, Rent Control, Family Almanac (start with a random hand at level 2).
 Game over shows the seed, offers **Same seed**, and **Share certificate** (a PNG drawn on canvas; uses the
 share sheet on phones, downloads elsewhere).
 
@@ -182,15 +186,14 @@ share sheet on phones, downloads elsewhere).
 - Boss suppression follows the affected perk through moves, sales of other perks, and copies. It clears
   at the next day's setup. An Intern cannot copy a disabled perk.
 - Loyalty Card fires on Closing Bells 4, 8, 12, and so on.
-- Insider Ring covers three trading days: today plus two more if today's market has not closed, or
-  the next three days if it has. Using it during news or Town also verifies already-dealt unplayed cards.
+- Insider Ring, bought after the market closes, covers the next three trading days.
 - Becoming Tycoon preserves the screen from which Town was opened; continuing cannot skip trading or rent.
 - Cosmetic reactions do not consume gameplay randomness. Opening sheets or revisiting screens does not
   change subsequent events, offers, or deals.
-- Perk/item slots support Enter and Space. Sheets keep keyboard focus inside and return it when closed.
+- Perk slots support Enter and Space. Sheets keep keyboard focus inside and return it when closed.
 
 ## Screens and help
-- **HUD** on every in-run screen: cash, day and tonight's rent; labeled Perk and Item slots (tap one for its sheet);
+- **HUD** on every in-run screen: cash, day and tonight's rent; labeled Perk slots (tap one for its sheet);
   the boss bar (tap for the boss sheet) and a **Hands** button (every hand, its level and MULT; today's hand is marked).
   The play screen's hand line opens the same sheet.
 - **First-run tips**: one dashed yellow line on the news, play, Closing Bell and shop screens, day 1 of a player's first run.
@@ -198,18 +201,19 @@ share sheet on phones, downloads elsewhere).
 ## Balance snapshot (`npm run sim`, 400 fixed seeds per strategy)
 | Strategy | Days p10/med/p90 | Peak NW p90 | Best MULT p90 | Tycoon |
 |---|---|---|---|---|
-| Stocks only, 25% | 7 / 11 / 48 | $75.2M | 46.5 | 0% |
-| Balanced, 25% | 9 / 12 / 28 | $37.7M | 15 | 8.8% |
-| Balanced, 50% | 8 / 12 / 29 | $70.5M | 26 | 17.8% |
-| Balanced, Max | 8 / 12 / 32 | $68.4M | 25 | 13.0% |
-| No shop, 25% | 10 / 12 / 16 | $267K | 5 | 0% |
-| Item/hand heuristic, 25% | 8 / 12 / 23 | $18.7M | 16 | 8.8% |
-| Same heuristic, endless | 8 / 12 / 34 | $18.7M | 16 | 8.8% |
+| Stocks only, 25% | 7 / 10 / 54 | $176.2M | 81.8 | 0% |
+| Balanced, 25% | 9 / 12 / 24 | $64.7M | 18 | 9.8% |
+| Balanced, 50% | 8 / 12 / 28 | $73.6M | 40 | 18.5% |
+| Balanced, Max | 8 / 12 / 29 | $69.7M | 36 | 13.3% |
+| No shop, 25% | 10 / 12 / 16 | $300K | 5 | 0% |
+| Item/hand heuristic, 25% | 8 / 11 / 20 | $3.4M | 14 | 9.5% |
+| Same heuristic, endless | 8 / 11 / 28 | $3.4M | 14 | 9.5% |
 
 Target: a typical run lasts 8–15 days. The tail should be fat: a run whose engine comes together should feel
-broken. The first five strategies remain naive for comparison. The new heuristic orders perks, uses selected
-Memos/Envelopes and considers hand completion using visible hints. It is not an optimal player: its extra
-item spending does not outperform the baseline in this batch. Endless continues after Tycoon rather than
+broken. The first five strategies remain naive for comparison. The heuristic orders perks, buys items with no
+hidden downside and considers hand completion using visible hints. It is not an optimal player: its item
+spending does not outperform the baseline in this batch, and it lost its old edge from Insider Tip and Short Sell
+when items became passive. Endless continues after Tycoon rather than
 stopping at the first win. Seeds are `SIM-0` through `SIM-399`; runs stop at day 120 at the latest.
 v0.7 runs are longer and Tycoon is more common than in v0.6 (bots no longer lose cash on startups that bust, and
 lot prices no longer drift up with a housing index).

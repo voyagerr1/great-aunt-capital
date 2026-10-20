@@ -13,7 +13,7 @@ Open it on your phone. Every push to `main` redeploys automatically.
 Runs save automatically in this browser after each action. Choose **Resume run** on the title screen
 to continue after closing the tab. Permanent upgrades remain compatible with existing saves.
 If browser storage is unavailable, the game shows a warning; keep the tab open to continue that run.
-Arrow keys buy/pass; Enter or Space opens a focused perk/item, and Escape closes its sheet.
+Arrow keys buy/pass; Enter or Space opens a focused perk, and Escape closes its sheet.
 
 ## Develop
 ```bash
