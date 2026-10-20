@@ -21,6 +21,7 @@ export const sfx={
   x:()=>{blip(523,.14,'sine');blip(659,.14,'sine',.035,.06);blip(784,.18,'sine',.035,.12)},
   loss:()=>blip(220,.12,'triangle',.04),
   bell:()=>{blip(1568,.7,'sine',.07);blip(2093,.55,'sine',.035,.02)},
+  settle:tier=>{if(tier==='win'){blip(523,.18,'sine',.04);blip(659,.2,'sine',.035,.1);blip(1047,.3,'sine',.035,.2)}else if(tier==='loss'){blip(392,.2,'sine',.04);blip(262,.3,'sine',.04,.18)}else{blip(659,.16,'sine',.035);blip(784,.22,'sine',.03,.12)}},
   boss:()=>{blip(330,.18,'sine',.05);blip(262,.26,'sine',.05,.2)},
   cash:()=>blip(1320,.05,'triangle',.05),
   use:()=>{blip(880,.05,'triangle',.05);blip(1175,.08,'triangle',.05,.05)},

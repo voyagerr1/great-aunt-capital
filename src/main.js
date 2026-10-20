@@ -1,5 +1,6 @@
 // Entry point: load styles and start the game.
 import './styles.css';
+import './ux.css';
 import { boot, api } from './game.js';
 
 boot();
