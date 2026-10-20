@@ -17,8 +17,8 @@ for (const [label, opts] of [
 ]) {
   const res = Array.from({ length: N }, (_,i) => playRun(api, {...opts,seed:'SIM-'+i}));
   const days = res.map(r => r.days), peaks = res.map(r => r.peak), mults = res.map(r => r.bestMult), bosses = res.map(r => r.bosses);
-  const ty = res.filter(r => r.tycoon).length;
+  const ty = res.filter(r => r.tycoon).length; const rich = res.filter(r => r.richest).length;
   console.log(`${label.padEnd(18)} days p10/med/p90 ${quantile(days, .1)}/${quantile(days, .5)}/${quantile(days, .9)}  ` +
     `peak NW med ${fmt(quantile(peaks, .5))} p90 ${fmt(quantile(peaks, .9))}  best MULT med ${quantile(mults, .5).toFixed(1)} p90 ${quantile(mults, .9).toFixed(1)}  ` +
-    `bosses med ${quantile(bosses, .5)}  tycoon ${(100 * ty / N).toFixed(1)}%`);
+    `bosses med ${quantile(bosses, .5)}  tycoon ${(100 * ty / N).toFixed(1)}%  richest ${(100 * rich / N).toFixed(1)}%`);
 }

@@ -2,7 +2,7 @@
 import { R, pick, rr, clamp, shuffle, fmt, fmtK, fmtM, QUARTER, SIZES, seedRng, makeSeed, rngState, restoreRng, escapeHTML } from './util.js';
 import { SAVE_KEY as KEY, RUN_VERSION, checkpoint, readCheckpoint } from './persistence.js';
 import { VOL, SECTORS, S, N1, N2, N3, BULL, BEAR, NEWS, FLUFF, REX_BUY, REX_SELL, REX_REACT, PERKS, P, RARITY, PERK_EDS, HANDS, H, MEMOS, ENVELOPES, ENH, SEALS,
-  DISTRICT_POOL, buildLots, EVENTS, BOSS_RENT, BOSSES, FINALS, ARCS, EDITIONS, DEPTH, AUNTS, MOODS, UPGRADES } from './data/content.js';
+  DISTRICT_POOL, buildLots, EVENTS, BOSS_RENT, BOSSES, FINALS, ARCS, EDITIONS, DEPTH, AUNTS, MOODS, UPGRADES, RICHEST, RICHEST_PEARLS } from './data/content.js';
 import { qualifying } from './engine/hands.js';
 import { PERK_FX } from './engine/perks.js';
 import { sprite, bldg } from './sprites.js';
@@ -12,7 +12,7 @@ import { shareCertificate } from './share.js';
 /* ===== State ===== */
 function loadMeta(){let m=null;try{m=JSON.parse(localStorage.getItem(KEY))}catch(e){}
   const base={pearls:0,up:{allowance:0,hand:0,accuracy:0,discount:0,starter:0,cable:0,deed:0,rentctl:0,pocket:0},best:0,bestCash:0,runs:0,
-    mood:0,mono:0,tycoons:0,mute:0,daily:null,bestDay:null};
+    mood:0,mono:0,tycoons:0,richest:0,mute:0,daily:null,bestDay:null};
   if(m&&typeof m==='object'){base.up=Object.assign(base.up,m.up||{});delete m.up;delete m.checkpoint;Object.assign(base,m)} return base;}
 // Mutations finish at render(), where meta and run are saved together, once.
 function saveSession(){
@@ -381,7 +381,8 @@ function resolveDay(){
   run.resolvedDay=run.day;run.result.reaction=rexReaction(run.result);
   if(run.dead) endRun();
   run.modal=null; scene='resolve';
-  if(!run.dead&&!run.ascended&&netWorth()>=1e100){run.ascended=true;scene='ascend'}
+  if(!run.dead&&!run.richest&&netWorth()>=RICHEST){run.richest=true;meta.pearls+=RICHEST_PEARLS;meta.richest=(meta.richest||0)+1;scene='richest'}
+  else if(!run.dead&&!run.ascended&&netWorth()>=1e100){run.ascended=true;scene='ascend'}
   render();
 }
 function endRun(){
@@ -721,7 +722,7 @@ function render(){
   renderScene();
   app.dataset.scene=scene;
   if(previousScene!==scene)app.scrollTop=0;
-  const captions={title:'Welcome',setup:'New account',help:'Help contents',will:'The will',news:'Market Mail',play:'Market.exe',resolve:'Closing Bell.xls',shop:'Broker catalog',town:'Property Explorer',tycoon:'Account milestone',ascend:'Account milestone',over:'Account closed'};
+  const captions={title:'Welcome',setup:'New account',help:'Help contents',will:'The will',news:'Market Mail',play:'Market.exe',resolve:'Closing Bell.xls',shop:'Broker catalog',town:'Property Explorer',tycoon:'Account milestone',richest:'Account milestone',ascend:'Account milestone',over:'Account closed'};
   const caption=document.getElementById('window-caption'), status=document.getElementById('desktop-status');
   if(caption)caption.textContent=captions[scene]||'Personal finance';
   if(status)status.textContent=run&&['news','play','resolve','shop','town'].includes(scene)?`Day ${run.day} · ${scene==='play'?`${run.hand.length-run.idx} orders remaining`:captions[scene]}`:'Ready.';
@@ -875,9 +876,16 @@ function renderScene(){
     <div style="font-size:20px" class="yel">Still not the richest person in the world. Keep going: rent compounds every day.</div>
     <button data-act="town2">Keep playing</button><div class="grow"></div>`; return;
   }
+  if(scene==='richest'){
+    app.innerHTML=`<div class="grow"></div>
+    ${tv(sprite('aunt'),'BREAKING','Heir passes every billionaire, now richest person in the world','YOU ▲ ▲ ▲ · EVERY BILLIONAIRE ▼ · YOUR TAX RATE: 0%','INHERITANCE HOUR',3)}
+    <div class="logo">${fmt(netWorth())}</div>
+    <div style="font-size:22px">You are the richest person in the world. +${RICHEST_PEARLS} pearls.</div>
+    <button data-act="richestback">Keep going</button><div class="grow"></div>`; return;
+  }
   if(scene==='ascend'){
     app.innerHTML=`<div class="grow"></div>
-    ${tv(sprite('aunt'),'SIGNAL LOST','RICHEST PERSON IN THE WORLD','▓▒░ ▓▒░ ▓▒░ ▓▒░ ▓▒░','???',3)}
+    ${tv(sprite('aunt'),'SIGNAL LOST','MORE MONEY THAN MONEY','▓▒░ ▓▒░ ▓▒░ ▓▒░ ▓▒░','???',3)}
     <div class="logo">${fmt(netWorth())}</div>
     <div style="font-size:24px">The static clears. Your great aunt is on every channel at once. "I knew you could do it, dear."</div>
     <button data-act="next">Keep going anyway</button><div class="grow"></div>`; return;
@@ -918,7 +926,7 @@ if(app) app.addEventListener('click',e=>{
   else if(a==='daily'){const d=dailyId();requestRun({seed:'DAILY-'+d,daily:d})}
   else if(a==='replay'){requestRun({aunt:run.aunt,mood:run.mood,seed:run.seed})}
   else if(a==='replacestart'){const options=pendingStart;pendingStart=null;if(options)newRun(options)}
-  else if(a==='share'){const b=run.best;shareCertificate({title:run.tycoon?'TYCOON':'BROKE',days:run.day,peak:fmtK(run.peak),hand:b?`${b.hand} for ${fmtK(b.total)}`:'none',
+  else if(a==='share'){const b=run.best;shareCertificate({title:run.richest?'RICHEST IN THE WORLD':run.tycoon?'TYCOON':'BROKE',days:run.day,peak:fmtK(run.peak),hand:b?`${b.hand} for ${fmtK(b.total)}`:'none',
     aunt:AUNTS.find(x=>x.id===run.aunt).name,mood:MOODS[run.mood].name,perks:run.perks.map(p=>P(p.id).name).join(', '),seed:run.seed})}
   else if(a==='mute'){meta.mute=meta.mute?0:1;setMuted(meta.mute);render()}
   else if(a==='title'){scene='title';render()}
@@ -952,6 +960,7 @@ if(app) app.addEventListener('click',e=>{
   else if(a==='reroll'){const c=rerollCost();if(run.cash>c){run.cash-=c;run.reroll+=3000;openShop(true)}}
   else if(a==='town'){run.back=scene;scene='town';render()}
   else if(a==='town2')continueTycoon();
+  else if(a==='richestback'){scene='resolve';render()}
   else if(a==='back'){scene=run.back||'news';render()}
   else if(a==='lot'){run.sel=run.sel===id?null:id;render()}
   else if(a==='buyprop') buyLot(run.sel);

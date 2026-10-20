@@ -307,6 +307,9 @@ export const MOODS=[
  {name:'Haunting You',txt:'All of the above. Start with $50,000 less, and a Final Boss every other quarter.'},
 ];
 
+/* The goal: net worth that passes the richest person in the world. Reaching it pays RICHEST_PEARLS once per run. */
+export const RICHEST=5e11, RICHEST_PEARLS=50;
+
 export const UPGRADES=[
  {id:'allowance',name:'Bigger Inheritance',desc:'Start each run with +$25,000.',max:5,cost:l=>3*(l+1)},
  {id:'hand',name:'Longer Ticker Tape',desc:'+1 stock to choose from every day.',max:2,cost:l=>8*(l+1)},

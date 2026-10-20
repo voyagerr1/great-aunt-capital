@@ -142,7 +142,11 @@ Day 10 ≈ $41K, day 20 ≈ $273K, day 30 ≈ $1.5M.
 
 ## Big numbers
 `fmt`/`fmtK` go K, M, B, T, Qa, Qi, Sx, Sp, Oc, No, Dc, then e-notation. At 1e100 net worth the screen cuts to
-static, the headline reads RICHEST PERSON IN THE WORLD, and your great aunt says one line. Infinity prints as `naneinf`.
+static and your great aunt says one line.
+
+## The goal
+Passing $500B net worth (`RICHEST`) makes you the richest person in the world: a milestone screen, +50 pearls
+once per run, and the share certificate says so. The run keeps going after it. Infinity prints as `naneinf`.
 
 ## Meta progression (The Will)
 Pearls on death = (days − 1 + ⌊3·log2(peak / $100K)⌋ + bosses beaten + 10 if Tycoon) × (1 + 0.25 × mood).
