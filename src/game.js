@@ -550,6 +550,18 @@ function modalHTML(){
       <div style="font-size:19px">What you buy in one day is your hand. Your best hand sets the starting MULT at the Closing Bell. Almanacs level a hand up.</div>
       <div class="hlist">${HANDS.map(h=>{const s=run.hands[h.id];return `<div class="hrow ${h.id===cur?'cur':''}"><div><div class="n">${h.name}${s.lvl>1?` <span class="muted">lvl ${s.lvl}</span>`:''}${h.id===cur?' <span class="yel">· today</span>':''}</div><div class="ds">${h.txt}</div></div><div class="mlt big">${fmtM(handMult(h.id))}</div></div>`}).join('')}</div>`);
   }
+  if(m.kind==='statement'&&run.result){
+    const r=run.result,passed=run.hand.filter(c=>!c.bought);
+    return sheet(`<div class="n d">Closing Bell · Day ${run.day}</div>
+      <div class="steps">${r.steps.length?r.steps.map(stepHTML).join(''):'<div class="muted">You sat this one out.</div>'}</div>
+      <div class="sum tab"><span>Winning gains ${fmtK(r.gains)} × ${fmtM(r.mult)}</span><span class="up">+${fmt(r.gains*r.mult)}</span>
+        ${r.losses?`<span>Losses · not multiplied</span><span class="down">${fmt(r.losses)}</span>`:''}
+        ${r.bonus?`<span>Cash bonuses</span><span class="up">+${fmt(r.bonus)}</span>`:''}
+        ${r.tax?`<span>Taken by the Tax Man</span><span class="down">−${fmt(r.tax)}</span>`:''}
+        <span>Net trading</span><span class="${r.net>=0?'up':'down'}">${r.net>=0?'+':''}${fmt(r.net)}</span></div>
+      ${passed.length?`<div class="passed muted">Passed: ${passed.map(c=>`${c.co.tick} ${chg(c.r)}${c.fraud?' (fraud)':''}`).join(' · ')}</div>`:''}
+      <div class="pundit mini"><img class="px8" src="${sprite('pundit')}" width="40" height="40" alt=""><div class="shout">${r.reaction}</div></div>`);
+  }
   if(m.kind==='boss'){
     const B=run.boss, bd=nextBossDay(run.day), left=bd-run.day;
     return sheet(`<div class="lbl">${isFinal(bd)?'Final Boss':'Boss Landlord'} · ${run.resolvedDay===run.day&&isBoss(run.day)&&!run.dead?'cleared today':left?`day ${bd}, in ${left} day${left>1?'s':''}`:'today'}</div>
@@ -664,14 +676,15 @@ let tallyT=null;
 function shake(){if(!app)return;app.classList.remove('shake');void app.offsetWidth;app.classList.add('shake')}
 function animateTally(){
   const box=document.getElementById('tally'); if(!box) return;
-  const rows=[...box.querySelectorAll('.st')], after=document.getElementById('after'), tG=document.getElementById('tG'), tM=document.getElementById('tM'), r=run.result;
+  const rows=[...box.querySelectorAll('.st')], steps=document.getElementById('steps'), tP=document.getElementById('tP'), tG=document.getElementById('tG'), tM=document.getElementById('tM'), r=run.result;
   const reduce=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   let i=0;
-  const finish=()=>{if(finishTally!==finish)return;finishTally=null;clearTimeout(tallyT);tallyT=null;rows.forEach(x=>{x.classList.add('show');x.classList.remove('is-current')});if(after)after.hidden=false;
-    tG.textContent=fmtK(r.gains);tM.textContent=fmtM(r.mult);r.shown=true;box.onclick=null;
+  const finish=()=>{if(finishTally!==finish)return;finishTally=null;clearTimeout(tallyT);tallyT=null;rows.forEach(x=>{x.classList.add('show');x.classList.remove('is-current')});if(steps)steps.scrollTop=0;
+    tG.textContent=fmtK(r.gains);tM.textContent=fmtM(r.mult);if(tP)tP.textContent=fmtK(r.gains*r.mult);r.shown=true;box.onclick=null;
     const summary=document.getElementById('settlementSummary');if(summary)summary.hidden=false;
-    const state=document.getElementById('tallyState');if(state)state.textContent='Statement ready';
+    const state=document.getElementById('tallyState');if(state)state.textContent='How MULT was built';
     const skip=document.querySelector('[data-act="finishtally"]');if(skip)skip.hidden=true;
+    const full=document.querySelector('[data-act="statement"]');if(full)full.hidden=false;
     app.querySelectorAll('.slot.is-triggering').forEach(el=>el.classList.remove('is-triggering'));
     const board=document.getElementById('board');if(board)board.className=`board box heat${run.heat}`;
     const progress=document.getElementById('calculationProgress');if(progress)progress.value=1;
@@ -680,13 +693,13 @@ function animateTally(){
   };
   finishTally=finish;
   if(reduce||!rows.length){finish();return}
-  rows.forEach(x=>x.classList.remove('show')); if(after) after.hidden=true;
+  rows.forEach(x=>x.classList.remove('show'));
   const step=()=>{
     if(i>=rows.length){finish();return}
-    const row=rows[i];rows.forEach(x=>x.classList.remove('is-current'));row.classList.add('show','is-current'); if(row.scrollIntoView) row.scrollIntoView({block:'nearest'});
+    const row=rows[i];rows.forEach(x=>x.classList.remove('is-current'));row.classList.add('show','is-current'); if(steps){const lo=row.offsetTop+row.offsetHeight-steps.clientHeight;if(row.offsetTop<steps.scrollTop)steps.scrollTop=row.offsetTop;else if(lo>steps.scrollTop)steps.scrollTop=lo}
     const state=document.getElementById('tallyState');if(state)state.textContent=`Calculating ${i+1}/${rows.length} · ${row.querySelector('.w').textContent}`;
     app.querySelectorAll('.slot.on').forEach(el=>el.classList.toggle('is-triggering',row.querySelector('.w').textContent.includes(P(run.perks[+el.dataset.i].id).name)));
-    tG.textContent=fmtK(+row.dataset.g); tM.textContent=fmtM(+row.dataset.m);
+    tG.textContent=fmtK(+row.dataset.g); tM.textContent=fmtM(+row.dataset.m); if(tP)tP.textContent=fmtK(+row.dataset.g*+row.dataset.m);
     const k=row.dataset.k;
     if(k==='x'){sfx.x();tM.classList.remove('pulse');void tM.offsetWidth;tM.classList.add('pulse')}
     else if(k==='add'||k==='hand') sfx.mult(i); else if(k==='loss') sfx.loss(); else if(k==='cash') sfx.cash(); else sfx.step(i);
@@ -810,36 +823,20 @@ function renderScene(){
     bindSwipe(); return;
   }
   if(scene==='resolve'){
-    const r=run.result, passed=run.hand.filter(c=>!c.bought);
-    app.innerHTML=hud()+`<div class="row between"><div class="h2">CLOSING BELL · DAY ${run.day}</div>${isBoss(run.day)?`<span class="pill down">${run.event.name.toUpperCase()}</span>`:''}</div>
-    <div id="board" class="board box heat${r.shown?run.heat:0}"><div class="bl"><span class="lbl">Trading gains</span><span id="tG" class="tab">${fmtK(r.shown?r.gains:0)}</span></div><span class="xx">×</span><div class="bl"><span class="lbl">Portfolio MULT</span><span id="tM" class="tab mlt">${fmtM(r.shown?r.mult:1)}</span></div><progress class="calculation-track" id="calculationProgress" max="1" value="${r.shown?1:0}" aria-label="Report calculation"></progress></div>
-    <div class="box panel col scroll grow pop" id="tally">
-      <div class="settlement-summary ${run.dead?'is-loss':''}" id="settlementSummary" ${r.shown?'':'hidden'} role="status"><div><span class="lbl">${run.dead?'Account closed':r.saved?'Rescued by Aunt’s Pearls':r.fire.length?'Rent paid after a fire sale':r.rent===0?'No rent due tonight':'Rent paid. You made it.'}</span><b>${fmt(Math.max(0,run.cash))}</b><span>available cash</span></div><div class="tab"><span class="lbl">Net trading</span><strong class="${r.net>=0?'up':'down'}">${r.net>=0?'+':''}${fmt(r.net)}</strong><span>${r.rent?'Rent −'+fmt(r.rent):'Rent waived'}</span></div></div>
-      <div class="tally-toolbar"><span id="tallyState">${r.shown?'Statement ready':'Calculating your trades…'}</span><button class="sm ghost" data-act="finishtally" ${r.shown?'hidden':''}>Show total</button></div>
-      <div class="steps">${r.steps.length?r.steps.map(stepHTML).join(''):'<div class="muted">You sat this one out.</div>'}</div>
-      <div id="after" class="col" style="gap:8px">
-        <div class="total tab"><span>Winning gains ${fmtK(r.gains)} × ${fmtM(r.mult)}</span><b class="${r.gains>0?'up':''}">${fmt(r.gains*r.mult)}</b></div>
-        ${r.losses?`<div class="row between"><span>Trading losses · not multiplied</span><span class="down">${fmt(r.losses)}</span></div>`:''}
-        ${r.bonus?`<div class="row between"><span>Cash bonuses</span><span class="up">+${fmt(r.bonus)}</span></div>`:''}
-        ${tip('Profit is GAINS x MULT. Better hands and perks raise MULT. Losses are never multiplied.')}
-        ${r.tax?`<div class="down">The Tax Man took ${fmt(r.tax)}.</div>`:''}
-        ${passed.length?`<div class="passed muted">Passed: ${passed.map(c=>`${c.co.tick} ${chg(c.r)}${c.fraud?' (fraud)':''}`).join(' · ')}</div>`:''}
-        <div class="sum tab">
-          <span>Trading</span><span class="${r.net>=0?'up':'down'}">${r.net>=0?'+':''}${fmt(r.net)}</span>
-          ${r.notes.map(n=>`<span>${n[0]}</span><span class="${n[1]>=0?'up':'down'}">${n[1]>=0?'+':''}${fmt(n[1])}</span>`).join('')}
-          ${r.inc?`<span>Property income</span><span class="up">+${fmt(r.inc)}</span>`:''}
-          <span>${isBoss(run.day)?'Boss rent':'Rent'}</span><span class="down">-${fmt(r.rent)}</span>
-          ${r.fire.map(f=>`<span>Fire sale: ${f[0]}</span><span class="up">+${fmt(f[1])}</span>`).join('')}
-          ${r.bounty?`<span class="yel">Boss bounty</span><span class="up">+${fmt(r.bounty)}</span>`:''}
-          <span class="yel">Cash now</span><span class="yel">${fmt(Math.max(0,run.cash))}</span>
-        </div>
-        ${r.prize?`<div class="yel">You beat ${run.event.name}. Prize: a ${r.prize} memo.</div>`:''}
-        ${r.moodUp?`<div class="yel">New mood unlocked: ${r.moodUp}.</div>`:''}
-        ${r.saved?`<div class="yel">You pawned Aunt's Pearls for ${fmt(r.saved)}. She will never know.</div>`:''}
-        <div class="pundit mini"><img class="px8" src="${sprite('pundit')}" width="40" height="40" alt=""><div class="shout">${r.reaction}</div></div>
-      </div>
+    const r=run.result, profit=r.gains*r.mult, line=(label,v,cls='')=>`<span class="${cls}">${label}</span><span class="${cls||(v>=0?'up':'down')}">${v>=0?'+':'−'}${fmt(Math.abs(v))}</span>`;
+    const msgs=[r.saved&&`You pawned Aunt's Pearls for ${fmt(r.saved)}. She will never know.`,r.prize&&`You beat ${run.event.name}. Prize: a ${r.prize} memo.`,r.moodUp&&`New mood unlocked: ${r.moodUp}.`].filter(Boolean);
+    app.innerHTML=hud()+`<div class="row between resolve-head"><div class="h2">CLOSING BELL · DAY ${run.day}</div>${isBoss(run.day)?`<span class="pill down">${run.event.name.toUpperCase()}</span>`:''}</div>
+    <div id="board" class="board box heat${r.shown?run.heat:0}"><div class="bl"><span class="lbl">Gains</span><span id="tG" class="tab">${fmtK(r.shown?r.gains:0)}</span></div><span class="xx">×</span><div class="bl"><span class="lbl">MULT</span><span id="tM" class="tab mlt">${fmtM(r.shown?r.mult:1)}</span></div><span class="xx">=</span><div class="bl"><span class="lbl">Profit</span><span id="tP" class="tab up">${fmtK(r.shown?profit:0)}</span></div><progress class="calculation-track" id="calculationProgress" max="1" value="${r.shown?1:0}" aria-label="Report calculation"></progress></div>
+    <div class="settlement-summary ${run.dead?'is-loss':''}" id="settlementSummary" ${r.shown?'':'hidden'} role="status">
+      <div class="settle-head"><span class="lbl">${run.dead?'Account closed':r.saved?'Rescued by Aunt’s Pearls':r.fire.length?'Rent paid after a fire sale':r.rent===0?'No rent due tonight':'Rent paid. You made it.'}</span><b class="tab">${fmt(Math.max(0,run.cash))}</b></div>
+      <div class="sum tab">${line('Trading',r.net)}${r.notes.map(n=>line(n[0],n[1])).join('')}${r.inc?line('Property income',r.inc):''}${line(isBoss(run.day)?'Boss rent':'Rent',-r.rent)}${r.fire.map(f=>line('Fire sale: '+f[0],f[1])).join('')}${r.bounty?line('Boss bounty',r.bounty,'yel'):''}</div>
+      ${msgs.map(m=>`<div class="yel settle-msg">${m}</div>`).join('')}
     </div>
-    ${run.dead?`<button class="primary red" data-act="over">See run results</button>`:`<div class="actions"><button class="ghost" data-act="town">Town${lotCount()?` · ${lotCount()}`:''}</button><button class="primary" data-act="shop">${isBoss(run.day)?'Visit the Broker →':'Visit Newsstand →'}</button></div>`}`; return;
+    <div class="box panel col pop" id="tally">
+      <div class="tally-toolbar"><span id="tallyState">${r.shown?'How MULT was built':'Calculating your trades…'}</span><button class="sm ghost" data-act="finishtally" ${r.shown?'hidden':''}>Show total</button><button class="sm ghost" data-act="statement" ${r.shown?'':'hidden'}>Full statement</button></div>
+      <div class="steps" id="steps">${r.steps.length?r.steps.map(stepHTML).join(''):'<div class="muted">You sat this one out.</div>'}</div>
+    </div>
+    ${run.dead?`<button class="primary red" data-act="over">See run results</button>`:`<div class="actions"><button class="ghost" data-act="town">Town${lotCount()?` · ${lotCount()}`:''}</button><button class="primary" data-act="shop">${isBoss(run.day)?'The Broker →':'Newsstand →'}</button></div>`}`; return;
   }
   if(scene==='shop'){
     const broker=isBoss(run.day);
@@ -946,6 +943,7 @@ if(app) app.addEventListener('click',e=>{
   else if(a==='cuse') useCons(run.modal.i);
   else if(a==='csell'){const k=run.cons[run.modal.i];if(k){run.cash+=Math.round(consPrice(k.k)/2);run.cons.splice(run.modal.i,1);run.modal=null;render()}}
   else if(a==='hands'){run.modal={kind:'hands'};render()}
+  else if(a==='statement'){run.modal={kind:'statement'};render()}
   else if(a==='boss'){run.modal={kind:'boss'};render()}
   else if(a==='next') startDay();
   else if(a==='shop') openShop();
