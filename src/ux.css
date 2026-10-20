@@ -63,4 +63,13 @@ button:not(:disabled):hover{filter:brightness(1.045)}
 }
 @media(max-height:680px) and (max-width:759px){.day-flow{display:none}.trade-controls{gap:5px}.account-window .hud>div{padding:5px 7px}.hud .val{font-size:17px}.order-quote b{font-size:12px}.trade-controls .handline{padding:6px 7px}.trade-receipt{display:none}.market .spark{height:36px}}
 @media(max-height:680px) and (max-width:759px){.trade-receipt.received{display:block}}
+/* Closing Bell: one screen, no scrolling. The steps panel takes what is left and the full statement lives in a dialog. */
+#app[data-scene=resolve]>#tally{flex:1 1 0;min-height:44px;display:flex;flex-direction:column;gap:6px;padding:8px}
+#tally .steps{flex:1;min-height:0;overflow:hidden;position:relative}#tally .st,.sheet .st{padding:4px 6px;font-size:12px}
+.board{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);padding:8px 8px 18px;gap:6px}.board .xx{font-size:15px}.board #tG,.board #tM,.board #tP{font:bold 20px/1.25 "Courier New",monospace;color:#000080;overflow-wrap:anywhere;max-width:100%}.board #tP{color:var(--green)}.calculation-track{bottom:5px;height:6px}
+.settlement-summary{display:flex;flex-direction:column;gap:6px;padding:8px 10px}.settlement-summary[hidden]{display:none}.settlement-summary>.sum{display:grid}.settlement-summary .sum>span:nth-child(odd){text-align:left}.settlement-summary>.settle-head{display:flex;flex-direction:row;text-align:left;justify-content:space-between;align-items:baseline;gap:10px}.settle-head b{font-size:21px}
+.settlement-summary .sum{font-size:12px;padding:2px}.settlement-summary .sum>span{padding:3px 5px;line-height:1.25}.settlement-summary .sum>span:nth-last-child(-n+2){background:none;font-weight:normal}.settle-msg{font-size:12px;line-height:1.25}
+.sheet .steps{flex-shrink:0}.sheet .sum{flex-shrink:0;font-size:13px}.sheet .sum>span{padding:5px}.sheet .sum>span:nth-last-child(-n+2){background:#e4e9f2;font-weight:bold}
+@media(max-width:759px){.settlement-summary{gap:5px;padding:7px 8px}.settle-head b{font-size:19px}.board #tG,.board #tM,.board #tP{font-size:18px}.tally-toolbar{min-height:28px}.tally-toolbar>button{min-height:32px}}
+@media(max-width:759px) and (max-height:680px){#app[data-scene=resolve]>.resolve-head{display:none}#tally{padding:4px 6px;gap:4px}#tally .tally-toolbar{min-height:0}#tally .tally-toolbar>button{min-height:30px;padding:4px 8px}#app[data-scene=resolve]>#tally{min-height:38px}.settlement-summary{gap:4px;padding:6px 8px}.settlement-summary .sum>span{padding:2px 5px}.board{padding:5px 8px 14px}.board .lbl{font-size:10px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

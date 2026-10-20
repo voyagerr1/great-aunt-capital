@@ -100,6 +100,17 @@ describe('safe result and restart controls',()=>{
       expect(api.run.cash).toBe(cash);expect(api.run.closes).toBe(closes);expect(rngState()).toBe(state);
     }finally{vi.useRealTimers()}
   });
+  it('keeps the full Closing Bell statement in a dialog',()=>{
+    vi.useFakeTimers();
+    try{
+      show('play');api.choose(true);finish();
+      expect(el('statement').hidden).toBe(true);el('finishtally').click();
+      expect(el('statement').hidden).toBe(false);el('statement').click();
+      expect(document.querySelector('.sheet').textContent).toContain('Net trading');
+      expect(document.querySelector('.sheet').textContent).toContain(api.run.result.reaction);
+      el('closemodal').click();expect(document.querySelector('.modal')).toBeNull();
+    }finally{vi.useRealTimers()}
+  });
   it('requires a choice before a Daily Market can replace the saved run',()=>{
     show('play');const seed=api.run.seed;boot();
     const saved=JSON.parse(localStorage.getItem(SAVE_KEY)).checkpoint;
