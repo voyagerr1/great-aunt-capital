@@ -21,7 +21,7 @@ export const PERK_FX={
   specialist:{end:x=>{if(['sweep','corner','full'].includes(x.hand))x.x(2,'Sector Specialist')}},
   indexer:{end:x=>{if(['index','spread'].includes(x.hand))x.add(4,'Index Hugger')}},
   yolobro:{end:x=>{if(x.bought.length&&x.bought.every(c=>c.co.vol===3))x.x(2,'YOLO Bro')}},
-  loyalty:{end:x=>{if(x.run.closes%4===0)x.x(4,'Loyalty Card')}},
+  loyalty:{end:x=>{if((x.run.closes+1)%4===0)x.x(4,'Loyalty Card')}},
   gnome:{end:x=>x.add(1+2*x.run.bossesBeat,'Lawn Gnome')},
   swiper:{end:x=>{if(x.run.bought)x.add(Math.round(x.run.bought*.25*100)/100,'Swipe Right Sally')}},
   mildred:{end:x=>{const m=Math.floor(x.run.day/4);if(m>1)x.x(m,'Mildred Herself')}},

@@ -12,8 +12,10 @@ for (const [label, opts] of [
   ['balanced, 50%', { strategy: 'balanced', size: 0.5 }],
   ['balanced, max', { strategy: 'balanced', size: 1 }],
   ['no shop, 25%', { strategy: 'balanced', size: 0.25, shop: false }],
+  ['smart, 25%', { strategy: 'balanced', size: 0.25, smart:true }],
+  ['smart endless, 25%', { strategy: 'balanced', size: 0.25, smart:true, endless:true }],
 ]) {
-  const res = Array.from({ length: N }, () => playRun(api, opts));
+  const res = Array.from({ length: N }, (_,i) => playRun(api, {...opts,seed:'SIM-'+i}));
   const days = res.map(r => r.days), peaks = res.map(r => r.peak), mults = res.map(r => r.bestMult), bosses = res.map(r => r.bosses);
   const ty = res.filter(r => r.tycoon).length;
   console.log(`${label.padEnd(18)} days p10/med/p90 ${quantile(days, .1)}/${quantile(days, .5)}/${quantile(days, .9)}  ` +

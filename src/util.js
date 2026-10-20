@@ -4,6 +4,9 @@
 let rs=null;
 export function seedRng(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19}rs=h>>>0}
 export function unseed(){rs=null}
+export const rngState=()=>rs;
+export function restoreRng(state){if(!Number.isInteger(state)||state<0||state>0xffffffff)throw new Error('Invalid RNG state');rs=state}
+export const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function mulberry(){rs=(rs+0x6D2B79F5)>>>0;let t=rs;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}
 export const R=()=>rs===null?Math.random():mulberry();
 const SEED_WORDS=['GOOSE','PICKLE','LLAMA','GRAVY','SOUP','BINGO','YACHT','WAFFLE','TOAST','NOODLE','GNOME','BISCUIT','HAMSTER','BLIMP'];

@@ -1,25 +1,59 @@
-// Simple bot players used by the balance sim and tests.
-// They are deliberately naive: a real player reading the news, ordering perks and building hands should beat them.
-export function playRun(api, { strategy = 'balanced', size = 0.25, shop = true, maxDays = 120 } = {}) {
+// Baseline bots stay naive for historical comparisons. Smart mode uses only visible
+// hints, portfolio hands and inventory, never the hidden up/fraud outcomes.
+import { qualifying } from '../src/engine/hands.js';
+const ADD=new Set(['contra','pump','ponzi','bag','indexer','gnome','swiper']);
+const MULT=new Set(['larry','cat','mcat','clock','specialist','yolobro','loyalty','mildred']);
+function orderPerks(api){
+  const rank=p=>p.id==='intern'?3:MULT.has(p.id)||p.ed==='holo'?4:ADD.has(p.id)?0:1;
+  const wanted=api.run.perks.slice().sort((a,b)=>rank(a)-rank(b));
+  wanted.forEach((p,target)=>{let i=api.run.perks.indexOf(p);while(i>target){api.movePerk(i,-1);i--}});
+  api.run.modal=null;
+}
+function useBoosts(api,card=false){
+  const r=api.run;
+  for(let i=r.cons.length-1;i>=0;i--){
+    const item=r.cons[i];
+    if(item.k==='alm'||item.k==='env'&&['swan','ring','shell'].includes(item.id)){api.useCons(i);continue}
+    if(!card||item.k!=='memo')continue;
+    const c=r.hand[r.idx];if(!c)break;
+    const bullish=c.hint==='bull';
+    if(['tip','short'].includes(item.id)||bullish&&['split','gild','notary','hot','redseal','goldseal','blueseal','clone','pump'].includes(item.id)){
+      if(item.id!=='short'||!bullish)api.useCons(i);
+    }else if(!bullish&&item.id==='shred')api.useCons(i);
+  }
+}
+function smartBuy(api,c){
+  const r=api.run;if(c.short)return c.hint==='bear';
+  if(c.hint==='bull')return true;
+  const buys=r.hand.filter(x=>x.bought),best=cards=>Math.max(1,...qualifying(cards,r.hand).map(api.handMult));
+  // A low-risk extra buy may complete a hand for the existing bullish positions.
+  return c.co.vol===1&&buys.length>=2&&r.cash>api.rentTonight()*2&&best([...buys,c])>=best(buys)+2;
+}
+export function playRun(api, { strategy = 'balanced', size = 0.25, shop = true, maxDays = 120, seed, smart=false, endless=false } = {}) {
   api.resetMeta();
-  api.newRun();
+  api.newRun({seed});
   let run = api.run;
   run.size = size;
   for (let g = 0; g < maxDays && !run.dead; g++) {
-    run.hand.forEach(c => api.choose(c.hint === 'bull'));
+    if(smart){
+      api.setScene('play');useBoosts(api);orderPerks(api);
+      while(run.idx<run.hand.length){useBoosts(api,true);const c=run.hand[run.idx];if(c)api.choose(smartBuy(api,c))}
+      // Gloria's empty first-day market is not used by these baseline runs.
+    }else run.hand.forEach(c => api.choose(c.hint === 'bull'));
     if (run.dead) break;
     if (shop) {
       api.openShop();
       const keep = 3 * api.rentFor(run.day + 1);
-      api.shop.forEach((o, i) => { if ((o.t === 'perk' || o.k === 'alm') && run.cash - o.price > keep) api.buyOffer(i); });
+      api.shop.forEach((o, i) => { if ((o.t === 'perk' || o.k === 'alm'||smart&&o.t==='cons') && run.cash - o.price > keep) api.buyOffer(i); });
       for (let i = run.cons.length - 1; i >= 0; i--) if (run.cons[i].k === 'alm') api.useCons(i);
     }
     if (strategy !== 'stocks') {
       const keep = 2 * api.rentFor(run.day + 1);
       for (const l of run.lots) if (!run.props[l.id] && run.cash - api.lotPrice(l) > keep) api.buyLot(l.id);
     }
-    if (run.tycoon) break;
-    api.startDay();
+    if (run.tycoon&&!endless) break;
+    if(run.tycoon&&endless&&!run.endless)api.continueTycoon();
+    if(g+1<maxDays)api.startDay();
     run = api.run;
   }
   return { days: run.day, peak: run.peak, tycoon: !!run.tycoon, bestMult: run.best ? run.best.mult : 1, bosses: run.bossesBeat };

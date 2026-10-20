@@ -3,13 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0e1838">
+  <meta name="theme-color" content="#008080">
   <title>Great Aunt Capital</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
 </head>
 <body>
-  <div id="app"></div>
+  <div class="desktop-label" aria-hidden="true"><span class="desktop-mark">GAC</span><span>Mildred's computer<br>Personal finance &amp; questionable advice</span></div>
+  <main class="application-window" aria-label="Great Aunt Capital">
+    <header class="application-title"><span class="application-icon" aria-hidden="true">▦</span><strong>Great Aunt Capital</strong><span class="window-caption" id="window-caption">Welcome</span><span class="window-controls" aria-hidden="true">_ &nbsp; □ &nbsp; ×</span></header>
+    <div class="application-menu"><span>Personal Finance Suite</span><span>Registered to: Great Aunt Mildred</span></div>
+    <div id="app"></div>
+    <footer class="application-status"><span id="desktop-status" role="status">Ready.</span><span>GAC Personal Edition</span></footer>
+  </main>
+  <div class="desktop-taskbar" aria-hidden="true"><span class="start-label">▦ Start</span><span class="active-task">Great Aunt Capital</span><span class="taskbar-note">Mildred is online.</span></div>
   <div id="toast" hidden></div>
   <script type="module" src="/src/main.js"></script>
 </body>

@@ -7,8 +7,12 @@ Great Aunt Mildred hands you $100,000. Read the morning news, swipe on stock cer
 at the Closing Bell, survive the Boss Landlords and buy the town. Most runs end
 broke. A few break wide open, and those are the ones people remember.
 
-Look: a 1980s cable finance channel (GAC-TV). Navy studio, yellow chyrons, LIVE bug, ticker
-crawl, pixel anchors. Stocks are engraved certificates.
+Look: Mildred's Windows 95–98 personal finance software. Teal desktop, gray beveled application
+windows, navy title bars, Tahoma/system fonts and the existing pixel portraits and buildings.
+Morning news arrives in Market Mail. Stocks appear one at a time as white order documents, with
+their chart, sector, risk and rumor. Closing Bell calculations fill a segmented progress bar above
+a spreadsheet-style statement. Town lots read as a Property Explorer, and details open as dialogs.
+The desktop account sidebar stacks above the market on phones. No CRT overlay or downloaded fonts.
 
 ## Run setup
 - **Aunts** (starting decks): Mildred (classic), Bernice (CRYPTO/MEME market, moves 1.5x; 3 runs),
@@ -99,7 +103,7 @@ The best hand you qualify for (by current MULT) counts. Almanacs level a hand up
 Rarity weights in the Broker: Common 70, Uncommon 25, Rare 5. Legendary only from Brown Envelopes.
 Editions roll on 17% of offers (Embossed 10%, Holographic 5%, Counterfeit 2%) and cost 1.5x.
 Sell any perk for half its price; Ponzi Pete counts every sale. Hooks live in `src/engine/perks.js`.
-42 perks; see `PERKS` for the list. Scaling ones: Compound Cat (+x0.2 per day held, reset by selling a share or
+42 perks; see `PERKS` for the list. Scaling ones: Compound Cat (+x0.2 per day held, reset by selling a
 lot), Lawn Gnome (+2 per boss beaten), Swipe Right Sally (+0.25 per
 stock bought), Mildred Herself (x1 per 4 days).
 
@@ -125,7 +129,8 @@ stock bought), Mildred Herself (x1 per 4 days).
 - Gimmicks: Casino Strip (0–3x nightly), Moon Base (monopoly 2.5x), Goose Sanctuary (1.5x, can't sell),
   Mega Mall (2.5x on boss days). The other four are plain.
 - Nightly income = price × yield × monopoly (1.5, 2 Zoning Board) × Slumlord Sal (1.4) × gimmick × events.
-  Lots are worth their price; sell for 95% (House Flipper 120%). v0.7 cut renovation, termites and the housing index.
+  Lots are worth their price; sell for 95% (House Flipper 120%). A lot you sell is off the market until
+  tomorrow, so profitable flips require time. v0.7 cut renovation, termites and the housing index.
 - Own all 16 lots: **Tycoon** (+25 pearls now, +10 at run end). Keep playing for **endless mode**.
 
 ## Rent
@@ -144,22 +149,43 @@ Old Family Deed, Family Heirloom, Rent Control, Bigger Pockets (start with an Al
 Game over shows the seed, offers **Same seed**, and **Share certificate** (a PNG drawn on canvas; uses the
 share sheet on phones, downloads elsewhere).
 
+### Resume and timing rules
+- Runs save after each action in the same browser, together with progression, shop offers, purchases,
+  and the exact gameplay RNG state. The title screen offers **Resume run**. Starting a new run replaces
+  the previous run checkpoint. Death removes the checkpoint and saves earned Pearls in the same write.
+- Existing permanent progression is retained; incompatible run checkpoints are ignored. Clearing browser
+  storage removes both progression and the current run. Headless simulations never save automatically.
+- Boss suppression follows the affected perk through moves, sales of other perks, and copies. It clears
+  at the next day's setup. An Intern cannot copy a disabled perk.
+- Loyalty Card fires on Closing Bells 4, 8, 12, and so on.
+- Insider Ring covers three trading days: today plus two more if today's market has not closed, or
+  the next three days if it has. Using it during news or Town also verifies already-dealt unplayed cards.
+- Becoming Tycoon preserves the screen from which Town was opened; continuing cannot skip trading or rent.
+- Cosmetic reactions do not consume gameplay randomness. Opening sheets or revisiting screens does not
+  change subsequent events, offers, or deals.
+- Perk/item slots support Enter and Space. Sheets keep keyboard focus inside and return it when closed.
+
 ## Screens and help
 - **HUD** on every in-run screen: cash, day and tonight's rent; labeled Perk and Item slots (tap one for its sheet);
   the boss bar (tap for the boss sheet) and a **Hands** button (every hand, its level and MULT; today's hand is marked).
   The play screen's hand line opens the same sheet.
 - **First-run tips**: one dashed yellow line on the news, play, Closing Bell and shop screens, day 1 of a player's first run.
 
-## Balance snapshot (`npm run sim`, 400 runs each, naive bots that buy perks and Almanacs blindly)
+## Balance snapshot (`npm run sim`, 400 fixed seeds per strategy)
 | Strategy | Days p10/med/p90 | Peak NW p90 | Best MULT p90 | Tycoon |
 |---|---|---|---|---|
-| Stocks only, 25% | 7 / 11 / 50 | $88.5M | 49.5 | 0% |
-| Balanced, 25% | 9 / 12 / 28 | $66.5M | 16 | 10.0% |
-| Balanced, 50% | 9 / 12 / 31 | $69.5M | 24 | 18.3% |
-| Balanced, Max | 8 / 12 / 33 | $68.8M | 22.9 | 14.0% |
-| No shop, 25% | 10 / 12 / 16 | $251K | 5 | 0% |
+| Stocks only, 25% | 7 / 11 / 48 | $75.2M | 46.5 | 0% |
+| Balanced, 25% | 9 / 12 / 28 | $37.7M | 15 | 8.8% |
+| Balanced, 50% | 8 / 12 / 29 | $70.5M | 26 | 17.8% |
+| Balanced, Max | 8 / 12 / 32 | $68.4M | 25 | 13.0% |
+| No shop, 25% | 10 / 12 / 16 | $267K | 5 | 0% |
+| Item/hand heuristic, 25% | 8 / 12 / 23 | $18.7M | 16 | 8.8% |
+| Same heuristic, endless | 8 / 12 / 34 | $18.7M | 16 | 8.8% |
 
 Target: a typical run lasts 8–15 days. The tail should be fat: a run whose engine comes together should feel
-broken. The bots don't order perks, use Memos or build toward a hand, so a thinking player should beat them.
+broken. The first five strategies remain naive for comparison. The new heuristic orders perks, uses selected
+Memos/Envelopes and considers hand completion using visible hints. It is not an optimal player: its extra
+item spending does not outperform the baseline in this batch. Endless continues after Tycoon rather than
+stopping at the first win. Seeds are `SIM-0` through `SIM-399`; runs stop at day 120 at the latest.
 v0.7 runs are longer and Tycoon is more common than in v0.6 (bots no longer lose cash on startups that bust, and
 lot prices no longer drift up with a housing index).

@@ -30,6 +30,7 @@ src/engine/hands.js   which portfolio hands a day's buys qualify for (pure)
 src/engine/perks.js   Closing Bell hooks per perk (card / end), +MULT and xMULT
 src/data/content.js   ALL content and tuning tables (perks, hands, memos, bosses, arcs, districts, aunts...)
 src/util.js           seeded RNG, money + big-number formatting, QUARTER/SIZES/ROUNDS constants
+src/persistence.js    versioned checkpoints and shared company reference restoration
 src/audio.js          WebAudio chiptune blips (unlocked on first tap)
 src/share.js          end-of-run certificate PNG + share sheet
 src/sprites.js        16x16 pixel sprites drawn on canvas (people, buildings)
@@ -39,10 +40,13 @@ tests/                vitest + jsdom
 ```
 
 ## How the code works
-- One mutable `run` object (the current run) and `meta` (saved to localStorage under
-  `greataunt.meta.v1`: pearls, upgrades, bests, mood unlocks). `scene` picks the screen.
+- One mutable `run` object (the current run) and `meta`. The localStorage entry
+  `greataunt.meta.v1` saves progression and a versioned checkpoint atomically, after each rendered action.
+  Checkpoints include the run, scene, shop and RNG state. Headless bots do not write saves.
+  `scene` picks the screen. Keep checkpoint validation aligned with changes to run state.
 - `run.perks` is an ordered list of `{id, ed, st}` slots; always go through `has(id)` / `activePerks()`
-  (they handle the Intern and boss-disabled slots). `run.deck` holds the persistent companies; a day's
+  (they handle the Intern and boss-disabled perks). Suppression follows the perk object for the day,
+  including copies; clear it at the next day's setup. `run.deck` holds the persistent companies; a day's
   certificates are `{co, up, hint, ...}` wrappers around them.
 - Today's effects are merged into `run.fx` by `buildFx()` (event + story-arc step + boss). Read them with `fx(key)`.
 - `render()` rebuilds `#app` from template strings for the current `scene`, then appends the perk/consumable
@@ -55,10 +59,12 @@ tests/                vitest + jsdom
 - The RNG is seeded per run. Use `R()`/`pick`/`rr`/`shuffle` from util.js, never `Math.random`, in game logic.
 
 ## Conventions
-- Phone first: test layouts at ~380px wide. Max content width 460px. No horizontal scroll.
+- Phone first: test layouts at ~380px wide. Desktop app width caps at 960px, with an account sidebar from 760px up. No horizontal scroll.
 - Keep it focused: every system should feed the swipe → Closing Bell loop. Prefer a sheet over a new screen.
-- Keep the look: navy studio, yellow chyrons, Silkscreen (display) + VT323 (body), cream stock
-  certificates, hard pixel shadows, no rounded corners except seals. Colors come from CSS tokens.
+- Keep the look: Windows 95–98 personal finance software. Teal desktop, gray beveled windows,
+  navy title bars, Tahoma/system text, white stock order documents and spreadsheet reports.
+  Keep pixel portraits/buildings, clear gain/loss colors, and plain readable labels. No CRT overlay,
+  external font dependency, or layered playing-card deck. Mobile stacks the same panels.
 - Copy is short, plain and funny. Name things by what players recognize. No emoji in UI.
 - Money is big ($100K start). Use `fmt` for full amounts and `fmtK` for compact chips.
 - New content goes in `src/data/content.js` as data, not as special cases scattered in logic.
@@ -69,9 +75,9 @@ tests/                vitest + jsdom
   reusing the `fx` keys listed above `EVENTS`, `BOSSES` and `ARCS`; add a new key's handling in one place.
 
 ## Backlog (suggested next tasks)
-1. **Smarter sim bots** that order perks (+ before x), use Memos and chase a hand, so balance reflects real play.
+1. **Improve the heuristic bot** using playtest evidence; fixed-seed smart and endless variants now order perks, use selected items and consider hand completion.
 2. **Drag to reorder perks** in the HUD (the sheet's Move buttons work today).
 3. **Split `game.js`:** move each scene's render function into `src/ui/scenes/*.js`.
-4. **Save mid-run** to localStorage so closing the browser doesn't end a run.
+4. **Phone QA:** validate layout, swipe feel, browser resume and native sharing on real devices.
 5. **PWA:** manifest + icon so it can be added to a phone home screen.
 6. **Booster packs** at the Broker (pick 1 of 3 Memos / Almanacs).

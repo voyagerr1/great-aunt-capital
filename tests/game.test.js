@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { LOTS, PERKS, EVENTS, EDITIONS, SECTORS, HANDS, MEMOS, ENVELOPES, BOSSES, FINALS, ARCS, DISTRICT_POOL, AUNTS } from '../src/data/content.js';
 import { qualifying } from '../src/engine/hands.js';
 import { PERK_FX } from '../src/engine/perks.js';
@@ -10,6 +10,7 @@ beforeAll(async () => {
   document.body.innerHTML = '<div id="app"></div><div id="toast" hidden></div>';
   ({ api } = await import('../src/game.js'));
 });
+beforeEach(()=>localStorage.clear());
 const fresh = (o = {}) => { api.setHeadless(true); api.resetMeta(); api.newRun(o); return api.run; };
 // Make the current card a plain stock that will rise.
 const plainUp = c => { Object.assign(c.co, { ed: null, enh: null, seal: null, sec: 'TECH', vol: 2, price: 10 }); c.up = true; c.fraud = false; };
@@ -86,10 +87,14 @@ describe('systems', () => {
   it('every event, boss and story step can play out a full day', () => {
     const steps = ARCS.flatMap(a => a.steps.flatMap(s => s.pick || [s])).map((s, i) => ({ id: 'arc' + i, name: 'Arc', txt: s.txt, fx: s.fx }));
     for (const ev of EVENTS.concat(BOSSES, FINALS, steps)) {
-      const run = fresh(); run.day = 4; run.cash = 5e5;
+      const run = fresh(); run.day = 3; run.cash = 5e5;
       run.props[run.lots[0].id] = { day: 0 };
       run.perks.push(api.newPerk('gnome'), api.newPerk('larry'));
-      api.setEvent(ev);
+      api.startDay(ev);
+      if(ev.fx?.handSize) expect(run.hand).toHaveLength(ev.fx.handSize);
+      if(ev.fx?.disableRight) expect(run.perks.at(-1).disabled).toBe(true);
+      if(ev.fx?.disableRandom) expect(run.perks.some(p=>p.disabled)).toBe(true);
+      if(ev.fx?.fraud) expect(run.hand.some(c=>c.fraud)).toBe(true);
       run.hand.forEach(() => api.choose(true));
       expect(Number.isFinite(run.cash)).toBe(true);
       expect(api.scene).toBe('resolve');
@@ -191,8 +196,8 @@ describe('balance', () => {
   it('runs last a sensible number of days and property helps', () => {
     api.setHeadless(true);
     const N = 150;
-    const stocks = Array.from({ length: N }, () => playRun(api, { strategy: 'stocks' }).days);
-    const bal = Array.from({ length: N }, () => playRun(api, { strategy: 'balanced' }).days);
+    const stocks = Array.from({ length: N }, (_,i) => playRun(api, { strategy: 'stocks',seed:'BALANCE-'+i }).days);
+    const bal = Array.from({ length: N }, (_,i) => playRun(api, { strategy: 'balanced',seed:'BALANCE-'+i }).days);
     const ms = quantile(stocks, .5), mb = quantile(bal, .5);
     expect(ms).toBeGreaterThanOrEqual(6); expect(ms).toBeLessThanOrEqual(16);
     expect(mb).toBeGreaterThanOrEqual(ms);
