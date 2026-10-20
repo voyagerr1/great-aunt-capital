@@ -1,4 +1,4 @@
-// All game content and tuning tables: sectors, names, news, perks, hands, consumables, bosses, arcs, districts, events, aunts and upgrades.
+// All game content and tuning tables: sectors, names, news, perks, hands, items, bosses, arcs, districts, events, aunts and upgrades.
 // Pure data. Balance changes usually start here; run `npm run sim` after editing.
 /* ===== Content ===== */
 export const VOL={1:.08,2:.17,3:.34};
@@ -62,7 +62,7 @@ export const PERKS=[
  {id:'intern',code:'IN',r:'r',name:'The Intern',desc:'Unpaid. Copies the perk to its right.',cost:16,c:'#d0d0d0'},
  {id:'ponzi',code:'PP',r:'u',name:'Ponzi Pete',desc:'+2 MULT for each perk you have sold this run. Each night, lose 1% of cash per perk sold.',cost:11,c:'#ff7a59'},
  {id:'echo',code:'EC',r:'r',name:'Echo Chamber',desc:'Retrigger your first stock once for each MEME stock you bought.',cost:16,c:'#f58cff'},
- {id:'mcat',code:'MC',r:'r',name:"Great Aunt's Cat",desc:'x3 MULT. Eats one of your consumables every morning.',cost:17,c:'#ffcf6e'},
+ {id:'mcat',code:'MC',r:'r',name:"Great Aunt's Cat",desc:'x3 MULT. Eats 2% of your cash every morning.',cost:17,c:'#ffcf6e'},
  {id:'vertical',code:'VI',r:'u',name:'Vertical Integration',desc:"+1 MULT per lot you own in the district tied to each stock's sector.",cost:12,c:'#7fd1b9'},
  {id:'splitter',code:'ST',r:'c',name:'Stock Splitter',desc:'+1 MULT for each stock you buy under $10 a share.',cost:8,c:'#b4f0a0'},
  {id:'bag',code:'BH',r:'c',name:'Bagholder',desc:'+3 MULT if one of your buys fell.',cost:8,c:'#c2a383'},
@@ -109,24 +109,24 @@ export const HANDS=[
 ];
 export const H=id=>HANDS.find(h=>h.id===id);
 
-/* ===== Consumables =====
-   Memos (t:'card' needs a certificate in front of you), Almanacs (one per hand) and Brown Envelopes (strong, with a cost). */
+/* ===== Items =====
+   Every item takes effect the moment you buy it. Nothing waits in your pockets.
+   Memos stamp one company in your market, named on the shelf before you buy. The target is a stock you bought
+   today when there is one (aim:'best' picks your best performer, aim:'worst' your worst). Almanacs level a hand up.
+   Brown Envelopes are strong, with a cost. */
 export const MEMOS=[
- {id:'tip',name:'Insider Tip',t:'card',txt:'A guy who knows a guy. Reveal whether this stock rises today.'},
- {id:'short',name:'Short Sell',t:'card',txt:'Bet against this stock: you profit if it falls.'},
- {id:'split',name:'Stock Split',t:'card',txt:'Your buy of this stock counts double, both ways.'},
- {id:'gild',name:'Gold Leaf',t:'card',txt:'This company turns Gold Leaf for good (+50% gains).'},
- {id:'notary',name:'Notary Stamp',t:'card',txt:'This company is Notarized: it never loses more than 10% in a day.'},
- {id:'glass',name:'Glass Job',t:'card',txt:'This company turns to Glass: moves 3x, but may shatter out of the market when bought.'},
- {id:'haunt',name:'Seance',t:'card',txt:'This company is Haunted: it copies the move of the stock dealt before it.'},
- {id:'hot',name:'Hot Tip',t:'card',txt:'This company gives +4 MULT whenever you buy it and it rises.'},
- {id:'redseal',name:'Red Seal',t:'card',txt:'Stamp a Red Seal: this company retriggers at the Closing Bell.'},
- {id:'goldseal',name:'Gold Seal',t:'card',txt:"Stamp a Gold Seal: buying this company pays half of tonight's rent."},
- {id:'blueseal',name:'Blue Seal',t:'card',txt:"Stamp a Blue Seal: buying it hands you the Almanac for that day's hand."},
- {id:'shred',name:'Shredder',t:'card',txt:'Remove this company from the market for good. Passes it today. Nobody saw anything.'},
- {id:'clone',name:'Photocopier',t:'card',txt:'Add a copy of this company to the market.'},
- {id:'merge',name:'Merger',t:'card',txt:"Merge this company into the next certificate: it takes this one's edition, stamp and seal. This one leaves the market."},
- {id:'pump',name:'Paid Influencer',t:'card',txt:"Not financial advice. This stock's sector trends up tomorrow, reported truthfully."},
+ {id:'split',name:'Stock Split',txt:'Every buy of this company counts double from now on, both ways.'},
+ {id:'gild',name:'Gold Leaf',txt:'This company turns Gold Leaf for good (+50% gains).'},
+ {id:'notary',name:'Notary Stamp',txt:'This company is Notarized: it never loses more than 10% in a day.'},
+ {id:'glass',name:'Glass Job',txt:'This company turns to Glass: moves 3x, but may shatter out of the market when bought.'},
+ {id:'haunt',name:'Seance',txt:'This company is Haunted: it copies the move of the stock dealt before it.'},
+ {id:'hot',name:'Hot Tip',txt:'This company gives +4 MULT whenever you buy it and it rises.'},
+ {id:'redseal',name:'Red Seal',txt:'Stamp a Red Seal: this company retriggers at the Closing Bell.'},
+ {id:'goldseal',name:'Gold Seal',txt:"Stamp a Gold Seal: buying this company pays half of that night's rent."},
+ {id:'blueseal',name:'Blue Seal',txt:"Stamp a Blue Seal: buying it levels up that day's hand."},
+ {id:'shred',name:'Shredder',aim:'worst',txt:'Your worst performer leaves the market for good. Nobody saw anything.'},
+ {id:'clone',name:'Photocopier',aim:'best',txt:'Your best performer gets a copy in the market.'},
+ {id:'pump',name:'Paid Influencer',txt:"Not financial advice. This company's sector trends up tomorrow, reported truthfully."},
 ];
 export const ENVELOPES=[
  {id:'legend',name:'Legendary Tip',txt:'From a man in a parking garage. Gain a Legendary perk. Lose half your cash.'},
@@ -149,7 +149,7 @@ export const ENH={
 export const SEALS={
  red:{name:'RED SEAL',c:'#e8433a',txt:'Retriggers at the Closing Bell.'},
  gold:{name:'GOLD SEAL',c:'#ffd23f',txt:"Buying it pays half of tonight's rent."},
- blue:{name:'BLUE SEAL',c:'#5b8cff',txt:"Buying it gives the Almanac for today's hand."},
+ blue:{name:'BLUE SEAL',c:'#5b8cff',txt:"Buying it levels up today's hand."},
 };
 
 /* ===== Real estate =====
@@ -296,7 +296,7 @@ export const AUNTS=[
  {id:'mildred',name:'Your Great Aunt',txt:'The classic. $100,000 and zero questions about where it came from.'},
  {id:'bernice',name:'The Crypto Aunt',txt:'Met a "crypto visionary" on a cruise. A market of mostly CRYPTO and MEME. Every stock moves 1.5x.',unlock:{runs:3},hint:'Play 3 runs.'},
  {id:'gloria',name:'The Frugal Aunt',txt:'$25,000 and the cheapest lot in the second district. No market on day 1.',unlock:{days:10},hint:'Last 10 days in one run.'},
- {id:'twins',name:'The Twin Aunts',txt:'Two extra broker offers and a third consumable slot. Rent +20%.',unlock:{mono:1},hint:'Own a whole district.'},
+ {id:'twins',name:'The Twin Aunts',txt:'Two extra broker offers and an extra Newsstand item. Rent +20%.',unlock:{mono:1},hint:'Own a whole district.'},
  {id:'ruth',name:'The Haunted Aunt',txt:'$10,000 plus 10% of your best peak (up to $1M). Four Haunted companies in the market.',unlock:{peak:5e6},hint:'Reach $5M net worth.'},
 ];
 export const MOODS=[
@@ -358,5 +358,5 @@ export const UPGRADES=[
  {id:'deed',name:'Old Family Deed',desc:'Start each run owning the cheapest lot in town.',max:1,cost:()=>8},
  {id:'starter',name:'Family Heirloom',desc:'Start each run with a random common perk.',max:1,cost:()=>6},
  {id:'rentctl',name:'Rent Control',desc:'Rent is 5% lower. Landlords call it communism.',max:3,cost:l=>6*(l+1)},
- {id:'pocket',name:'Bigger Pockets',desc:'Start each run with a random Almanac.',max:1,cost:()=>5},
+ {id:'pocket',name:'Family Almanac',desc:'Start each run with a random hand at level 2.',max:1,cost:()=>5},
 ];

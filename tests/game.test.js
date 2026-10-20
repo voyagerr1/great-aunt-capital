@@ -13,6 +13,9 @@ beforeAll(async () => {
 beforeEach(()=>localStorage.clear());
 const fresh = (o = {}) => { api.setHeadless(true); api.resetMeta(); api.newRun(o); return api.run; };
 // Make the current card a plain stock that will rise.
+const finish = run => { while (run.idx < run.hand.length) api.choose(false); };
+// Replace the shelf with exactly these offers.
+const stock = (...offers) => { api.shop.length = 0; api.shop.push(...offers); };
 const plainUp = c => { Object.assign(c.co, { ed: null, enh: null, seal: null, sec: 'TECH', vol: 2, price: 10 }); c.up = true; c.fraud = false; };
 
 describe('content', () => {
@@ -124,31 +127,41 @@ describe('systems', () => {
     expect(r.total).toBeCloseTo(r.gains * r.mult, 6);
     expect(r.net).toBeCloseTo(r.total + r.losses + r.bonus, 6);
   });
-  it('every memo and envelope can be used', () => {
+  it('every memo and envelope takes effect the moment it is bought', () => {
     for (const m of MEMOS) {
-      const run = fresh(); api.setScene('play');
-      run.cons = [{ k: 'memo', id: m.id }];
-      expect(api.useCons(0)).toBe(true);
+      const run = fresh(); finish(run); api.openShop();
+      const co = run.deck[0];
+      stock({ t: 'cons', k: 'memo', id: m.id, price: 1, co: co.id });
+      expect(api.buyOffer(0)).toBe(true);
+      expect(run.cons).toBeUndefined();
     }
     for (const e of ENVELOPES) {
-      const run = fresh(); api.setScene('news');
+      const run = fresh(); finish(run); api.openShop();
       run.perks = [api.newPerk('gnome'), api.newPerk('larry')];
-      run.cons = [{ k: 'env', id: e.id }];
-      expect(api.useCons(0)).toBe(true);
+      stock({ t: 'cons', k: 'env', id: e.id, price: 1 });
+      expect(api.buyOffer(0)).toBe(true);
       expect(Number.isFinite(run.cash)).toBe(true);
     }
   });
-  it('card memos wait for a certificate', () => {
-    const run = fresh(); api.setScene('news');
-    run.cons = [{ k: 'memo', id: 'short' }];
-    expect(api.useCons(0)).toBe(false);
-    expect(run.cons).toHaveLength(1);
+  it('stamps the named company on purchase', () => {
+    const run = fresh(); finish(run); api.openShop();
+    const co = run.deck[2]; co.ed = null;
+    stock({ t: 'cons', k: 'memo', id: 'gild', price: 1, co: co.id });
+    api.buyOffer(0);
+    expect(co.ed).toBe('gold');
   });
-  it('almanacs level up hands', () => {
-    const run = fresh();
+  it('items that cannot take effect cannot be bought', () => {
+    const run = fresh(); finish(run); api.openShop();
+    run.perks = []; const cash = run.cash;
+    stock({ t: 'cons', k: 'env', id: 'takeover', price: 1 });
+    expect(api.buyOffer(0)).toBe(false);
+    expect(run.cash).toBe(cash);
+  });
+  it('almanacs level up hands as soon as they are bought', () => {
+    const run = fresh(); finish(run); api.openShop();
     const before = api.handMult('pair');
-    run.cons = [{ k: 'alm', id: 'pair' }];
-    api.useCons(0);
+    stock({ t: 'cons', k: 'alm', id: 'pair', price: 1 });
+    api.buyOffer(0);
     expect(api.handMult('pair')).toBe(before + 1);
   });
   it('big orders cut gains', () => {
@@ -171,12 +184,11 @@ describe('every screen renders', () => {
     api.newRun(); api.render();
     expect(app.innerHTML).toContain("Today's tips");
     const run = api.run;
-    run.perks.push(api.newPerk('cat', 'holo')); run.cons.push({ k: 'memo', id: 'tip' });
+    run.perks.push(api.newPerk('cat', 'holo'));
     for (const s of ['play', 'town', 'news']) { api.setScene(s); api.render(); expect(app.innerHTML.length).toBeGreaterThan(100); }
     run.modal = { kind: 'hands' }; api.setScene('play'); api.render(); expect(app.innerHTML).toContain('Cornered Market');
     run.modal = { kind: 'boss' }; api.render(); expect(app.innerHTML).toContain(run.boss.name);
     run.modal = { kind: 'perk', i: 0 }; api.setScene('news'); api.render(); expect(app.innerHTML).toContain('Compound Cat');
-    run.modal = { kind: 'cons', i: 0 }; api.render(); expect(app.innerHTML).toContain('Insider Tip');
     run.modal = null;
     for (let d = 0; d < 4; d++) {
       run.hand.forEach(() => api.choose(true));

@@ -7,7 +7,7 @@ A mobile-first pixel roguelite with a Balatro-style scoring engine. You inherit 
 your great aunt (never named) and try to become the richest person in the world. Each in-game day you watch a morning finance news show, swipe right/left on stocks from a
 persistent market deck, and at the Closing Bell your gains are multiplied by MULT built from your
 portfolio hand and perks (triggered left to right). Every quarter ends with a Boss Landlord. Buy a
-procedurally drawn town, use Memos/Almanacs/Envelopes, and pay rising rent. Go broke
+procedurally drawn town, buy Memos/Almanacs/Envelopes (they take effect on purchase; nothing is activated), and pay rising rent. Go broke
 and you earn Pearls for permanent upgrades, new aunts and harder moods. Own all 16 lots to become a
 Tycoon, then keep going in endless mode.
 

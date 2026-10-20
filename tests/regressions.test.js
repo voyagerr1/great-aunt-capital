@@ -69,7 +69,8 @@ describe('boss suppression survives inventory changes',()=>{
   });
   it('copies the disable state with Offshore Will',()=>{
     const r=bossDay(BOSSES.find(b=>b.id==='goose'));r.perks=[api.newPerk('mcat')];api.startDay();
-    r.cons=[{k:'env',id:'crypt'}];api.useCons(0);expect(api.activePerks()).toHaveLength(0);
+    finish();api.openShop();api.shop.length=0;api.shop.push({t:'cons',k:'env',id:'crypt',price:1});api.buyOffer(0);
+    expect(r.perks).toHaveLength(2);expect(api.activePerks()).toHaveLength(0);
   });
 });
 
@@ -91,27 +92,21 @@ describe('determinism and item timing',()=>{
     for(let n=1;n<=8;n++){r.cash=1e9;api.setEvent(EVENTS[0]);finish();counts.push(r.result.steps.filter(s=>s.who.includes('Loyalty Card')).length);api.startDay()}
     expect(counts).toEqual([0,0,0,2,0,0,0,2]);
   });
-  it.each(['news','play','town'])('verifies unplayed cards immediately when Ring is used in %s',scene=>{
-    const r=fresh();api.setScene(scene);if(scene==='town')r.back='news';
-    r.cons=[{k:'env',id:'ring'}];expect(api.useCons(0)).toBe(true);
-    expect(r.hand.every(c=>c.verified&&c.hint===(c.up?'bull':'bear'))).toBe(true);
-    for(let n=0;n<3;n++){r.cash=1e9;finish();expect(r.ring).toBe(2-n);api.startDay();if(n<2)expect(r.hand.every(c=>c.verified)).toBe(true)}
-  });
-  it.each(['resolve','shop','town'])('gives three future days when Ring is used after resolution in %s',scene=>{
-    const r=fresh();finish();if(scene==='shop')api.openShop();api.setScene(scene);if(scene==='town')r.back='resolve';
-    r.cons=[{k:'env',id:'ring'}];api.useCons(0);
-    for(let n=0;n<3;n++){r.cash=1e9;api.startDay();expect(r.hand.every(c=>c.verified)).toBe(true);finish()}
+  it('gives three future days of true rumors when Insider Ring is bought',()=>{
+    const r=fresh();finish();api.openShop();api.shop.length=0;api.shop.push({t:'cons',k:'env',id:'ring',price:1});
+    expect(api.buyOffer(0)).toBe(true);
+    for(let n=0;n<3;n++){r.cash=1e9;api.startDay();expect(r.hand.every(c=>c.verified&&c.hint===(c.up?'bull':'bear'))).toBe(true);finish()}
     expect(r.ring).toBe(0);
   });
-  it('verifies only the remaining certificates when used mid-market',()=>{
-    const r=fresh();api.setScene('play');api.choose(false);r.cons=[{k:'env',id:'ring'}];api.useCons(0);
-    expect(r.hand[0].verified).toBe(false);expect(r.hand.slice(1).every(c=>c.verified)).toBe(true);
+  it('keeps Offshore Account rent through the next quarter end when bought on a boss day',()=>{
+    const r=bossDay(BOSSES[0]);api.startDay();finish();api.openShop();api.shop.length=0;api.shop.push({t:'cons',k:'env',id:'offshore',price:1});
+    api.buyOffer(0);expect(r.rentXUntil).toBe(8);
   });
 });
 
 describe('atomic resume and storage failure',()=>{
   it('resumes a partially played hand with shared company identity and identical future results',()=>{
-    const r=fresh('SAVE-EXACT');api.setScene('play');api.choose(true);r.cons=[{k:'memo',id:'gild'}];api.useCons(0);api.saveSession();
+    const r=fresh('SAVE-EXACT');api.setScene('play');api.choose(true);r.hand[1].co.ed='gold';api.saveSession();
     const disk=localStorage.getItem(SAVE_KEY);finish();api.openShop();const expected={cash:r.cash,deck:JSON.stringify(r.deck),shop:JSON.stringify(api.shop),rng:rngState()};
     localStorage.setItem(SAVE_KEY,disk);expect(api.resumeRun()).toBe(true);const restored=api.run;
     expect(restored.idx).toBe(1);for(const c of restored.hand)expect(c.co).toBe(restored.deck.find(co=>co.id===c.co.id));
